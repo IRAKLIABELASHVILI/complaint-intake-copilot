@@ -27,12 +27,12 @@ erDiagram
         string email UK
         string display_name
         string role "handler | team_lead"
-        string password_hash
+        string api_token_hash "SHA-256 of a demo API token"
     }
     CASES {
         uuid id PK
         uuid tenant_id FK
-        string reference UK "CMP-2026-000123"
+        string reference UK "CMP-2026-3F9A1C2B"
         string external_message_id "idempotent intake, unique per tenant"
         string subject
         text body "original, never sent to the LLM"

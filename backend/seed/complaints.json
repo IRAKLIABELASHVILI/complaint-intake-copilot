@@ -1,0 +1,122 @@
+[
+  {
+    "tenant": "northbridge",
+    "days_ago": 1,
+    "subject": "Charged a late fee after my husband died",
+    "sender_email": "margaret.ellison@example.com",
+    "sender_name": "Margaret Ellison",
+    "body": "Dear Sir or Madam,\n\nMy husband Peter passed away last month and I have been trying to sort out his accounts. Today I saw that you charged a £35 late payment fee on his credit card ending 4111 1111 1111 1111 while I was waiting for the death certificate. I told your branch about his death on the 3rd.\n\nI am finding all of this very hard to deal with. Please remove the fee and tell me what I need to do next.\n\nYou can reach me on 07700 900123.\n\nRegards,\nMargaret Ellison"
+  },
+  {
+    "tenant": "northbridge",
+    "days_ago": 2,
+    "subject": "Overdraft charges pushed me further into debt",
+    "sender_email": "d.okafor@example.com",
+    "sender_name": "Daniel Okafor",
+    "body": "Hello,\n\nI lost my job in August and since then I have been using my overdraft for food and rent. Every month you add more charges and now I owe more than when I started. I can't afford to pay the charges and my rent at the same time.\n\nAccount number 12345678, sort code 20-45-67. I want the charges refunded and a payment plan I can actually afford.\n\nDaniel Okafor"
+  },
+  {
+    "tenant": "northbridge",
+    "days_ago": 0,
+    "subject": "Rude staff member on the phone",
+    "sender_email": "priya.shah@example.com",
+    "sender_name": "Priya Shah",
+    "body": "I called your helpline yesterday about a missing statement and the person I spoke to was rude and hung up on me twice. I have been a customer for 12 years and I have never been spoken to like that. I would like an apology and for someone to look at the call.\n\nPriya Shah"
+  },
+  {
+    "tenant": "northbridge",
+    "days_ago": 54,
+    "subject": "Still waiting for a refund of a disputed transaction",
+    "sender_email": "tom.barker@example.com",
+    "sender_name": "Tom Barker",
+    "body": "Dear Northbridge,\n\nI reported a transaction of £420 to an online retailer that I never made, almost two months ago. I was told it would be investigated and I would hear back. I have heard nothing. The money is still missing from my account.\n\nPlease tell me what is happening.\n\nTom Barker\n07700 900456"
+  },
+  {
+    "tenant": "northbridge",
+    "days_ago": 3,
+    "subject": "Payment to my landlord never arrived",
+    "sender_email": "alicja.nowak@example.com",
+    "sender_name": "Alicja Nowak",
+    "body": "Hi,\n\nI sent £850 rent to my landlord by faster payment on Friday and it left my account but he says he never received it. Your app says it is completed. My landlord is threatening to charge me a late fee. Please find out where the money is.\n\nMy English is not very good so please write to me in simple words.\n\nThank you,\nAlicja Nowak"
+  },
+  {
+    "tenant": "northbridge",
+    "days_ago": 20,
+    "subject": "Loan was approved even though I could not afford it",
+    "sender_email": "kevin.marsh@example.com",
+    "sender_name": "Kevin Marsh",
+    "body": "To whom it may concern,\n\nIn January you gave me a £7,000 personal loan. At the time I already had three other loans and two credit cards close to their limits. Nobody asked me about my outgoings. I have now missed two payments and I am struggling to keep up.\n\nI don't think the loan should have been approved and I want you to look at whether it was affordable.\n\nKevin Marsh\n14 Mill Lane, Banbury, OX16 1AB"
+  },
+  {
+    "tenant": "northbridge",
+    "days_ago": 5,
+    "subject": "Account closed without warning",
+    "sender_email": "s.adeyemi@example.com",
+    "sender_name": "Samuel Adeyemi",
+    "body": "Good morning,\n\nMy current account was closed last week with no warning and no explanation. My salary was due to be paid into it. I have had to borrow money from my brother. Please explain why the account was closed and when I will get my balance back.\n\nSamuel Adeyemi"
+  },
+  {
+    "tenant": "northbridge",
+    "days_ago": 2,
+    "subject": "Scam call - lost my savings",
+    "sender_email": "joan.whitfield@example.com",
+    "sender_name": "Joan Whitfield",
+    "body": "Dear Sir,\n\nSomeone rang me pretending to be from your fraud team and told me to move my savings to a safe account. I moved £6,200. I am 81 and I live on my own and I did not understand what was happening until my daughter came round. I feel very foolish and I have not been sleeping.\n\nPlease help me get my money back.\n\nJoan Whitfield\n01632 960123"
+  },
+  {
+    "tenant": "northbridge",
+    "days_ago": 9,
+    "subject": "Interest rate on savings account not what I was told",
+    "sender_email": "rachel.green.uk@example.com",
+    "sender_name": "Rachel Green",
+    "body": "Hello,\n\nWhen I opened my fixed saver in branch I was told the rate was 4.5%. My statement shows 3.9%. I would like the difference paid and an explanation of why I was given the wrong information.\n\nRachel Green"
+  },
+  {
+    "tenant": "northbridge",
+    "days_ago": 4,
+    "subject": "Collections calls while I am in hospital",
+    "sender_email": "liam.oconnor@example.com",
+    "sender_name": "Liam O'Connor",
+    "body": "I have been in hospital for three weeks after an operation and your collections team keeps calling me several times a day about my credit card arrears. I told them I am unwell and they still call. It is making my anxiety much worse. Please stop the calls and put the account on hold until I am home.\n\nLiam O'Connor"
+  },
+  {
+    "tenant": "harbourlane",
+    "days_ago": 1,
+    "subject": "Mortgage payment taken twice",
+    "sender_email": "helen.brooks@example.com",
+    "sender_name": "Helen Brooks",
+    "body": "Dear Harbour Lane,\n\nMy mortgage payment of £1,140 was taken twice this month. This has left me overdrawn with my bank. Please refund the second payment and any charges my bank adds.\n\nHelen Brooks\n07700 900789"
+  },
+  {
+    "tenant": "harbourlane",
+    "days_ago": 52,
+    "subject": "Complaint about how my arrears were handled",
+    "sender_email": "george.mills@example.com",
+    "sender_name": "George Mills",
+    "body": "Hi,\n\nAfter my divorce I fell behind on my mortgage. I asked for help and was told the only option was to pay the full arrears within 30 days. I later found out other options existed. I want my case reviewed and the fees you added since March removed.\n\nGeorge Mills"
+  },
+  {
+    "tenant": "harbourlane",
+    "days_ago": 6,
+    "subject": "Branch closure - no way to pay in cheques",
+    "sender_email": "pat.evans@example.com",
+    "sender_name": "Pat Evans",
+    "body": "Our local branch has closed and the nearest one is 25 miles away. I don't use the internet or a smartphone. I have no way to pay in my pension cheques now. What am I supposed to do?\n\nPat Evans"
+  },
+  {
+    "tenant": "harbourlane",
+    "days_ago": 3,
+    "subject": "Wrong name on my statements",
+    "sender_email": "chris.taylor@example.com",
+    "sender_name": "Chris Taylor",
+    "body": "Hello, my savings statements have had the wrong surname on them for six months. I have asked three times for it to be fixed. Please correct it and confirm in writing.\n\nChris Taylor"
+  },
+  {
+    "tenant": "harbourlane",
+    "days_ago": 0,
+    "subject": "ISA transfer has taken 7 weeks",
+    "sender_email": "amira.haddad@example.com",
+    "sender_name": "Amira Haddad",
+    "body": "Dear team,\n\nI requested a cash ISA transfer to Harbour Lane seven weeks ago. The money has left my old provider but has not arrived in my new ISA. I have lost interest because of the delay. I would like it completed and compensation for the lost interest.\n\nAmira Haddad"
+  }
+]

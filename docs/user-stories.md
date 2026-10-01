@@ -15,7 +15,7 @@ Every user belongs to exactly one tenant (client firm).
 
 **Acceptance criteria**
 
-1. **Given** I am an authenticated handler, **when** I POST a complaint with subject, body, sender email and received time, **then** I get `201 Created` with the case. The case has a human-readable reference (e.g. `CMP-2026-000123`), status `new`, and my tenant id.
+1. **Given** I am an authenticated handler, **when** I POST a complaint with subject, body, sender email and received time, **then** I get `201 Created` with the case. The case has a human-readable reference (e.g. `CMP-2026-3F9A1C2B`), status `new`, and my tenant id.
 2. The response comes back **without waiting for the AI**. The analysis is queued, not run inside the request.
 3. **Given** a received time in the future, an empty body, or an invalid sender email, **when** I submit, **then** I get `422` with a field-level error, and no case is created.
 4. **Given** I submit, **then** the case's `received_at` is the time I gave. If I gave none, it is the server time. It **cannot be changed afterwards**, because the deadlines depend on it.
