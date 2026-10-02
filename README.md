@@ -2,7 +2,7 @@
 
 AI-assisted intake for regulated complaints: each complaint email becomes a case with UK regulatory deadlines (FCA DISP 1.5 / 1.6), a suggested category, priority and vulnerability flags with evidence. Personal data is redacted before it reaches the model, and a person makes every final decision.
 
-> 🚧 Work in progress. Milestone 2 (backend foundation) is in progress.
+> 🚧 Work in progress. Milestone 2 (backend foundation, tenant isolation) is complete; milestone 3 (deadline engine) is next.
 
 **Stack:** Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 · Alembic · PostgreSQL · Docker Compose · GitHub Actions (ruff, mypy, pytest)
 **Planned:** RabbitMQ worker · OpenAI-compatible LLM provider with PII redaction · React + TypeScript
