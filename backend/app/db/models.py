@@ -1,6 +1,5 @@
-"""Database models: tenants, users, cases, audit events (M2); outbox and processed messages (M4).
-
-Analyses and vulnerability indicators arrive with milestone 5, with their own Alembic migration.
+"""Database models: tenants, users, cases, audit events (M2); outbox and processed messages (M4);
+analyses and vulnerability indicators (M5).
 
 C# comparison: these are EF Core entity classes. `Mapped[str | None]` = nullable column.
 """
@@ -14,13 +13,18 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TenantScopedMixin, TimestampMixin, str_enum, utc_now
 from app.domain.enums import (
+    AnalysisStatus,
     AuditSource,
     BankHolidayRegion,
     CaseStatus,
     Category,
+    IndicatorDecision,
+    IndicatorSource,
+    IndicatorType,
     Priority,
     ResolutionType,
     UserRole,
+    VulnerabilityDriver,
 )
 
 
@@ -127,3 +131,51 @@ class ProcessedMessage(Base):
     message_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     case_id: Mapped[uuid.UUID]
     processed_at: Mapped[datetime] = mapped_column(default=utc_now)
+
+
+class CaseAnalysis(TenantScopedMixin, TimestampMixin, Base):
+    """One attempt by the model to analyse a case. Kept even when it failed, as evidence.
+
+    The suggestions here are what the AI said. What a person decided lives on the case
+    (`final_category`, `final_priority`), so overriding never destroys a suggestion.
+    """
+
+    __tablename__ = "case_analyses"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cases.id"), index=True)
+    attempt: Mapped[int]
+    status: Mapped[AnalysisStatus] = mapped_column(str_enum(AnalysisStatus))
+    provider: Mapped[str] = mapped_column(String(32))
+    model: Mapped[str] = mapped_column(String(100))
+    redacted_input: Mapped[str | None] = mapped_column(Text)  # exactly what left our system
+    suggested_category: Mapped[Category | None] = mapped_column(str_enum(Category))
+    summary: Mapped[str | None] = mapped_column(String(400))
+    suggested_priority: Mapped[Priority | None] = mapped_column(str_enum(Priority))
+    raw_output: Mapped[str | None] = mapped_column(Text)  # the model's answer, for diagnosis
+    error: Mapped[str | None] = mapped_column(String(500))  # never quotes complaint text
+    correlation_id: Mapped[str | None] = mapped_column(String(64))
+
+    case: Mapped[Case] = relationship()
+
+
+class VulnerabilityIndicator(TenantScopedMixin, TimestampMixin, Base):
+    """A sign of vulnerability (FCA FG21/1) with its evidence. Never deleted: a rejected one
+    stays visible as rejected (US-3.4)."""
+
+    __tablename__ = "vulnerability_indicators"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cases.id"), index=True)
+    analysis_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("case_analyses.id"))
+    indicator_type: Mapped[IndicatorType] = mapped_column(str_enum(IndicatorType))
+    driver: Mapped[VulnerabilityDriver] = mapped_column(str_enum(VulnerabilityDriver))
+    evidence_quote: Mapped[str] = mapped_column(Text)
+    source: Mapped[IndicatorSource] = mapped_column(str_enum(IndicatorSource))
+    decision: Mapped[IndicatorDecision] = mapped_column(
+        str_enum(IndicatorDecision), default=IndicatorDecision.PENDING
+    )
+    decided_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    decided_at: Mapped[datetime | None]
+
+    case: Mapped[Case] = relationship()

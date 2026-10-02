@@ -19,6 +19,7 @@ from app.db.session import new_session
 from app.domain.business_calendar import BusinessCalendar
 from app.reference_data.bank_holidays import calendar_for_region
 from app.services.case_service import CaseService
+from app.services.decision_service import DecisionService
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -83,3 +84,10 @@ def get_case_service(
 
 
 CaseServiceDep = Annotated[CaseService, Depends(get_case_service)]
+
+
+def get_decision_service(session: SessionDep, user: CurrentUser) -> DecisionService:
+    return DecisionService(session, user)
+
+
+DecisionServiceDep = Annotated[DecisionService, Depends(get_decision_service)]

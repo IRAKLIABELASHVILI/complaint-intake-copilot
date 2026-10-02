@@ -20,13 +20,20 @@ class StubHandler:
     """Returns an outcome or raises, and remembers the correlation id it ran under."""
 
     raises: Exception | None = None
+    dead_letter_raises: Exception | None = None
     seen_correlation_ids: list[str | None] = field(default_factory=list)
+    dead_lettered: list[str] = field(default_factory=list)  # reasons
 
     def handle(self, job: AnalysisJob) -> JobOutcome:
         self.seen_correlation_ids.append(correlation_id_var.get())
         if self.raises is not None:
             raise self.raises
         return JobOutcome.PROCESSED
+
+    def on_dead_letter(self, job: AnalysisJob, reason: str) -> None:
+        self.dead_lettered.append(reason)
+        if self.dead_letter_raises is not None:
+            raise self.dead_letter_raises
 
 
 def deliver(
@@ -70,10 +77,13 @@ def test_an_oversized_message_is_dead_lettered() -> None:
 
 
 def test_a_permanent_failure_is_dead_lettered_at_once() -> None:
-    channel = deliver(StubHandler(raises=PermanentJobError("no such case")))
+    handler = StubHandler(raises=PermanentJobError("no such case"))
+
+    channel = deliver(handler)
 
     assert channel.nacked == [(7, False)]
     assert channel.published == []
+    assert handler.dead_lettered == ["Failed permanently: PermanentJobError"]
 
 
 def test_a_transient_failure_is_retried_later_with_the_next_attempt_number() -> None:
@@ -88,10 +98,29 @@ def test_a_transient_failure_is_retried_later_with_the_next_attempt_number() -> 
 
 
 def test_a_transient_failure_on_the_last_attempt_is_dead_lettered() -> None:
-    channel = deliver(StubHandler(raises=ConnectionError("db down")), attempt=MAX_ATTEMPTS)
+    handler = StubHandler(raises=ConnectionError("db down"))
+
+    channel = deliver(handler, attempt=MAX_ATTEMPTS)
 
     assert channel.nacked == [(7, False)]
     assert channel.published == []
+    assert handler.dead_lettered == [f"Gave up after {MAX_ATTEMPTS} attempts: ConnectionError"]
+
+
+def test_a_failure_while_recording_the_dead_letter_still_dead_letters_the_message() -> None:
+    handler = StubHandler(raises=PermanentJobError(), dead_letter_raises=ConnectionError("db"))
+
+    channel = deliver(handler)
+
+    assert channel.nacked == [(7, False)]
+
+
+def test_a_transient_failure_that_will_be_retried_is_not_reported_as_dead() -> None:
+    handler = StubHandler(raises=ConnectionError("db down"))
+
+    deliver(handler, attempt=1)
+
+    assert handler.dead_lettered == []
 
 
 def test_a_missing_or_malformed_attempt_header_counts_as_the_first_attempt() -> None:

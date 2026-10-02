@@ -64,6 +64,15 @@ Every user belongs to exactly one tenant (client firm).
 7. Audit events **cannot be edited or deleted** through the API. They have no update or delete endpoints.
 8. **When** I view a case, **then** I can see its full audit trail, newest first.
 
+**Implementation decisions (milestone 5)**
+
+- Decisions are accepted while a case is `awaiting_review`, `needs_human_review` or `in_progress`; otherwise `409`. The first decision moves a case under review to `in_progress`, audited as `review_started`.
+- A decision with no AI suggestion to compare with (the analysis failed) is audited with `source = handler`.
+- Repeating a decision that is already recorded changes nothing and writes no audit event.
+- A handler's own indicator must also quote the complaint word for word (`422` otherwise), and is stored as `confirmed`.
+- The vulnerability priority floor applies to the **suggestion**. A person may still decide a lower final priority: people make the judgement calls.
+- Why a case needs a person comes from its latest `analysis_failed` audit event, so the reason survives every path to `needs_human_review` (invalid output twice, failed redaction, dead-lettered job).
+
 ---
 
 ## US-4: Always see the regulatory deadlines

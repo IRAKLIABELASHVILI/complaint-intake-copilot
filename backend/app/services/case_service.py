@@ -11,10 +11,12 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from app.db.models import AuditEvent, Case, User
+from app.db.models import AuditEvent, Case, CaseAnalysis, User, VulnerabilityIndicator
 from app.db.repositories import (
+    AnalysisRepository,
     AuditRepository,
     CaseRepository,
+    IndicatorRepository,
     OutboxRepository,
     UserRepository,
 )
@@ -25,7 +27,7 @@ from app.domain.deadlines import (
     calculate_deadlines,
     track_deadlines,
 )
-from app.domain.enums import AuditSource
+from app.domain.enums import AnalysisStatus, AuditSource, CaseStatus
 from app.logging_config import correlation_id_var
 from app.messaging.outbox import analysis_job_message
 from app.schemas.cases import CaseCreate
@@ -39,6 +41,18 @@ class CaseNotFoundError(Exception):
 
 class AssigneeNotFoundError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class CaseReview:
+    """What a handler reviews: the AI's suggestion, why it needs a person, the indicators."""
+
+    suggestion: CaseAnalysis | None
+    review_reason: str | None
+    indicators: tuple[VulnerabilityIndicator, ...]
+
+
+_NOT_YET_ANALYSED = (CaseStatus.NEW, CaseStatus.ANALYSING)
 
 
 @dataclass(frozen=True)
@@ -60,6 +74,8 @@ class CaseService:
         self.cases = CaseRepository(session, actor.tenant_id)
         self.users = UserRepository(session, actor.tenant_id)
         self.audit = AuditRepository(session, actor.tenant_id)
+        self.analyses = AnalysisRepository(session, actor.tenant_id)
+        self.indicators = IndicatorRepository(session, actor.tenant_id)
         self.outbox = OutboxRepository(session)
 
     def create(self, data: CaseCreate) -> CreateCaseResult:
@@ -112,6 +128,23 @@ class CaseService:
         except HolidayDataUnavailableError:
             logger.warning("Bank holiday data out of range", extra={"case_id": case.id})
             return None
+
+    def review(self, case: Case) -> CaseReview:
+        """US-2.4: nothing is shown while the analysis is running. A failed attempt is never
+        shown as a suggestion: only a COMPLETED analysis is (US-2.5)."""
+        if case.status in _NOT_YET_ANALYSED:
+            return CaseReview(None, None, ())
+        reason = None
+        if case.status is CaseStatus.NEEDS_HUMAN_REVIEW:
+            # The audit event of the failure is the one record of why a person is needed.
+            failure = self.audit.latest_for_case_with_action(case.id, "analysis_failed")
+            if failure is not None and isinstance(failure.new_value, dict):
+                reason = failure.new_value.get("reason")
+        return CaseReview(
+            suggestion=self.analyses.latest_for_case(case.id, status=AnalysisStatus.COMPLETED),
+            review_reason=reason,
+            indicators=tuple(self.indicators.list_for_case(case.id)),
+        )
 
     def get(self, case_id: uuid.UUID) -> Case:
         case = self.cases.get(case_id)

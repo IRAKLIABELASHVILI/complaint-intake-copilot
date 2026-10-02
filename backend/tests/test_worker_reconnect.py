@@ -5,13 +5,17 @@ import socket
 import pika.exceptions
 import pytest
 
+from app.messaging.messages import AnalysisJob
 from app.worker.__main__ import RECONNECT_DELAY_SECONDS, consume_forever
 from app.worker.consumer import JobConsumer
 from app.worker.jobs import JobOutcome
 
 
 class NeverCalledHandler:
-    def handle(self, job: object) -> JobOutcome:
+    def handle(self, job: AnalysisJob) -> JobOutcome:
+        raise AssertionError("no message should arrive")
+
+    def on_dead_letter(self, job: AnalysisJob, reason: str) -> None:
         raise AssertionError("no message should arrive")
 
 

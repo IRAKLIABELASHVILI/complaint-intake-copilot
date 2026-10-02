@@ -13,12 +13,14 @@ from typing import Any
 
 import pika.exceptions
 
+from app.ai.factory import build_provider
 from app.config import get_settings
 from app.db.session import new_session
 from app.logging_config import configure_logging
 from app.messaging.messages import ANALYSIS_QUEUE
 from app.messaging.rabbitmq import connect, declare_topology
 from app.worker.analysis_job_handler import AnalysisJobHandler
+from app.worker.case_analyser import CaseAnalyser
 from app.worker.consumer import JobConsumer
 
 logger = logging.getLogger(__name__)
@@ -57,7 +59,9 @@ def consume_forever(
 def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
-    consumer = JobConsumer(AnalysisJobHandler(new_session))
+    analyser = CaseAnalyser(build_provider(settings))
+    consumer = JobConsumer(AnalysisJobHandler(new_session, analyser))
+    logger.info("Worker starting with LLM provider '%s'", settings.llm_provider)
     try:
         consume_forever(settings.rabbitmq_url, consumer)
     except KeyboardInterrupt:

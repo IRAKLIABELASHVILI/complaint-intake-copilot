@@ -62,7 +62,7 @@ erDiagram
         string suggested_category
         string summary
         string suggested_priority
-        jsonb raw_output
+        text raw_output "the answer as received: an invalid one may not even be JSON"
         string error
         string correlation_id
         timestamptz created_at

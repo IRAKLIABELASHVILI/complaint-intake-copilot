@@ -24,3 +24,7 @@ class PermanentJobError(Exception):
 
 class JobHandler(Protocol):
     def handle(self, job: AnalysisJob) -> JobOutcome: ...
+
+    def on_dead_letter(self, job: AnalysisJob, reason: str) -> None:
+        """Called once when the job is given up, so the failure is visible, not silent."""
+        ...

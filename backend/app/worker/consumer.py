@@ -13,7 +13,12 @@ from typing import Any
 import pika
 
 from app.logging_config import correlation_id_var
-from app.messaging.messages import ANALYSIS_RETRY_QUEUE, InvalidMessageError, parse_analysis_job
+from app.messaging.messages import (
+    ANALYSIS_RETRY_QUEUE,
+    AnalysisJob,
+    InvalidMessageError,
+    parse_analysis_job,
+)
 from app.messaging.retry_policy import retry_delay
 from app.worker.jobs import JobHandler, PermanentJobError
 
@@ -47,9 +52,11 @@ class JobConsumer:
                 "Job failed permanently; dead-lettered",
                 extra=context | {"error_type": type(error).__name__},
             )
-            channel.basic_nack(delivery_tag=delivery_tag, requeue=False)
+            self._dead_letter(
+                channel, delivery_tag, job, f"Failed permanently: {type(error).__name__}"
+            )
         except Exception as error:  # transient: database down, timeouts...
-            self._retry_or_dead_letter(channel, delivery_tag, body, attempt, context, error)
+            self._retry_or_dead_letter(channel, delivery_tag, job, attempt, context, error)
         else:
             logger.info("Job handled", extra=context | {"outcome": outcome})
             channel.basic_ack(delivery_tag=delivery_tag)
@@ -60,7 +67,7 @@ class JobConsumer:
         self,
         channel: Any,
         delivery_tag: int,
-        body: bytes,
+        job: AnalysisJob,
         attempt: int,
         context: dict[str, object],
         error: Exception,
@@ -69,14 +76,15 @@ class JobConsumer:
         delay = retry_delay(attempt)
         if delay is None:
             logger.error("Job failed after all attempts; dead-lettered", extra=context)
-            channel.basic_nack(delivery_tag=delivery_tag, requeue=False)
+            reason = f"Gave up after {attempt} attempts: {type(error).__name__}"
+            self._dead_letter(channel, delivery_tag, job, reason)
             return
 
         logger.warning("Job failed; retrying later", extra=context, exc_info=True)
         channel.basic_publish(
             exchange="",
             routing_key=ANALYSIS_RETRY_QUEUE,
-            body=body,
+            body=job.to_bytes(),
             properties=pika.BasicProperties(
                 content_type="application/json",
                 delivery_mode=pika.DeliveryMode.Persistent,
@@ -87,6 +95,16 @@ class JobConsumer:
         # Ack only after the retry copy is safely queued. A crash in between means one extra
         # delivery, which the idempotent handler absorbs.
         channel.basic_ack(delivery_tag=delivery_tag)
+
+    def _dead_letter(self, channel: Any, delivery_tag: int, job: AnalysisJob, reason: str) -> None:
+        try:
+            self.handler.on_dead_letter(job, reason)
+        except Exception as error:  # e.g. the database is the thing that is down
+            logger.error(
+                "Could not record the dead-lettered job on its case",
+                extra={"message_id": job.message_id, "error_type": type(error).__name__},
+            )
+        channel.basic_nack(delivery_tag=delivery_tag, requeue=False)
 
 
 def _attempt_of(properties: Any) -> int:

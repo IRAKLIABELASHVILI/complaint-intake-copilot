@@ -14,8 +14,15 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.db.base import TenantScopedMixin
-from app.db.models import AuditEvent, Case, OutboxMessage, User
-from app.domain.enums import CaseStatus
+from app.db.models import (
+    AuditEvent,
+    Case,
+    CaseAnalysis,
+    OutboxMessage,
+    User,
+    VulnerabilityIndicator,
+)
+from app.domain.enums import AnalysisStatus, CaseStatus
 
 
 class CrossTenantWriteError(Exception):
@@ -97,6 +104,55 @@ class AuditRepository(TenantScopedRepository[AuditEvent]):
             select(AuditEvent)
             .where(AuditEvent.case_id == case_id)
             .order_by(AuditEvent.created_at.desc())
+        )
+        return self.session.scalars(self._scoped(statement)).all()
+
+    def latest_for_case_with_action(self, case_id: uuid.UUID, action: str) -> AuditEvent | None:
+        statement = (
+            select(AuditEvent)
+            .where(AuditEvent.case_id == case_id, AuditEvent.action == action)
+            .order_by(AuditEvent.created_at.desc())
+        )
+        return self.session.scalars(self._scoped(statement)).first()
+
+
+class AnalysisRepository(TenantScopedRepository[CaseAnalysis]):
+    """Append only: every attempt is kept as evidence of what was sent and what came back."""
+
+    model = CaseAnalysis
+
+    def add(self, analysis: CaseAnalysis) -> CaseAnalysis:
+        return self._add(analysis)
+
+    def latest_for_case(
+        self, case_id: uuid.UUID, *, status: AnalysisStatus | None = None
+    ) -> CaseAnalysis | None:
+        statement = select(CaseAnalysis).where(CaseAnalysis.case_id == case_id)
+        if status is not None:
+            statement = statement.where(CaseAnalysis.status == status)
+        statement = statement.order_by(CaseAnalysis.created_at.desc(), CaseAnalysis.attempt.desc())
+        return self.session.scalars(self._scoped(statement)).first()
+
+
+class IndicatorRepository(TenantScopedRepository[VulnerabilityIndicator]):
+    """No delete: a rejected indicator stays visible as rejected (US-3.4)."""
+
+    model = VulnerabilityIndicator
+
+    def add(self, indicator: VulnerabilityIndicator) -> VulnerabilityIndicator:
+        return self._add(indicator)
+
+    def get(self, case_id: uuid.UUID, indicator_id: uuid.UUID) -> VulnerabilityIndicator | None:
+        statement = select(VulnerabilityIndicator).where(
+            VulnerabilityIndicator.id == indicator_id, VulnerabilityIndicator.case_id == case_id
+        )
+        return self.session.scalars(self._scoped(statement)).first()
+
+    def list_for_case(self, case_id: uuid.UUID) -> Sequence[VulnerabilityIndicator]:
+        statement = (
+            select(VulnerabilityIndicator)
+            .where(VulnerabilityIndicator.case_id == case_id)
+            .order_by(VulnerabilityIndicator.created_at, VulnerabilityIndicator.id)
         )
         return self.session.scalars(self._scoped(statement)).all()
 

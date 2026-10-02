@@ -7,7 +7,7 @@ OpenAPI schema, which milestone 6 turns into a typed TypeScript client.
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -15,8 +15,12 @@ from app.domain.enums import (
     AuditSource,
     CaseStatus,
     Category,
+    IndicatorDecision,
+    IndicatorSource,
+    IndicatorType,
     Priority,
     ResolutionType,
+    VulnerabilityDriver,
 )
 
 # Allow a little clock difference between the mail server and us.
@@ -51,6 +55,59 @@ class CaseAssign(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     assigned_to_user_id: uuid.UUID | None
+
+
+class CategoryDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    category: Category
+
+
+class PriorityDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    priority: Priority
+
+
+class IndicatorDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision: Literal[IndicatorDecision.CONFIRMED, IndicatorDecision.REJECTED]
+
+
+class IndicatorCreate(BaseModel):
+    """A vulnerability indicator the AI missed. The quote must be in the complaint."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    indicator_type: IndicatorType
+    evidence_quote: str = Field(min_length=3, max_length=500)
+
+
+class SuggestionRead(BaseModel):
+    """What the AI suggested. The case's final_* fields hold what a person decided."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    suggested_category: Category | None
+    summary: str | None
+    suggested_priority: Priority | None
+    provider: str
+    model: str
+    created_at: datetime
+
+
+class IndicatorRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    indicator_type: IndicatorType
+    driver: VulnerabilityDriver
+    evidence_quote: str
+    source: IndicatorSource
+    decision: IndicatorDecision
+    decided_by_user_id: uuid.UUID | None
+    decided_at: datetime | None
 
 
 class DeadlineProgressRead(BaseModel):
@@ -95,6 +152,13 @@ class CaseRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     deadline_tracking: DeadlineTrackingRead | None = None
+    suggestion: SuggestionRead | None = Field(
+        default=None, description="Null until the analysis completes (US-2.4)"
+    )
+    review_reason: str | None = Field(
+        default=None, description="Why the case needs a person, when its status says so"
+    )
+    vulnerability_indicators: list[IndicatorRead] = Field(default_factory=list)
 
 
 class CaseSummary(BaseModel):

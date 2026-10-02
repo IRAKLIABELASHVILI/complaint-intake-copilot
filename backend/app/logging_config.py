@@ -29,6 +29,7 @@ _ALLOWED_EXTRA_FIELDS = (
     "attempt",
     "outcome",
     "error_type",
+    "redactions",
 )
 
 

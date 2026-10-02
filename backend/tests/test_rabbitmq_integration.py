@@ -36,6 +36,9 @@ class RaisingHandler:
     def handle(self, job: AnalysisJob) -> JobOutcome:
         raise self.error
 
+    def on_dead_letter(self, job: AnalysisJob, reason: str) -> None:
+        pass
+
 
 @pytest.fixture
 def channel() -> Iterator[Any]:

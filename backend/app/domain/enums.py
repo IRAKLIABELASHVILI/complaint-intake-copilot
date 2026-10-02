@@ -39,6 +39,43 @@ class Priority(StrEnum):
     URGENT = "urgent"
 
 
+class AnalysisStatus(StrEnum):
+    COMPLETED = "completed"
+    INVALID_OUTPUT = "invalid_output"  # the model answered, but the answer failed validation
+    FAILED = "failed"  # no usable attempt: redaction failed, or the job was given up
+
+
+class IndicatorType(StrEnum):
+    PHYSICAL_ILLNESS = "physical_illness"
+    MENTAL_HEALTH = "mental_health"
+    DISABILITY = "disability"
+    BEREAVEMENT = "bereavement"
+    RELATIONSHIP_BREAKDOWN = "relationship_breakdown"
+    JOB_LOSS = "job_loss"
+    FINANCIAL_HARDSHIP = "financial_hardship"
+    LOW_CAPABILITY = "low_capability"  # literacy, language, digital skills
+
+
+class VulnerabilityDriver(StrEnum):
+    """The four drivers of vulnerability in FCA FG21/1."""
+
+    HEALTH = "health"
+    LIFE_EVENTS = "life_events"
+    RESILIENCE = "resilience"
+    CAPABILITY = "capability"
+
+
+class IndicatorSource(StrEnum):
+    AI = "ai"
+    HANDLER = "handler"
+
+
+class IndicatorDecision(StrEnum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    REJECTED = "rejected"
+
+
 class ResolutionType(StrEnum):
     SUMMARY_RESOLUTION = "src"
     FINAL_RESPONSE = "final_response"
