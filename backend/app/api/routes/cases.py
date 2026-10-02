@@ -66,7 +66,7 @@ def assign_case(case_id: uuid.UUID, data: CaseAssign, service: CaseServiceDep) -
         raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND) from None
     except AssigneeNotFoundError:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, "Assignee not found in your organisation"
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "Assignee not found in your organisation"
         ) from None
 
 

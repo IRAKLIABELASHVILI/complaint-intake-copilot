@@ -32,29 +32,24 @@ class TenantScopedRepository[ModelT: TenantScopedMixin]:
     def _scoped(self, statement: Select[ModelT]) -> Select[ModelT]:
         """Restrict a SELECT to rows of the current tenant.
 
-        TODO(Irakli): return `statement` with a WHERE clause on `self.model.tenant_id`.
-
-        Hints:
-        - `statement.where(...)` returns a NEW statement (statements are immutable, like LINQ).
-        - `self.model` is the mapped class, e.g. `Case`, so `self.model.tenant_id` is the column.
-        - In C#: `query.Where(x => x.TenantId == _tenantId)`.
-
-        Tests that pass once this works: tests/test_cases_api.py (nearly all of them).
+        `where` returns a new statement (statements are immutable, like LINQ queries).
         """
-        raise NotImplementedError("TODO(Irakli): implement the tenant filter")
+        return statement.where(self.model.tenant_id == self.tenant_id)
 
     def _add(self, entity: ModelT) -> ModelT:
         """Attach a new entity to the session, making sure it belongs to the current tenant.
 
-        TODO(Irakli):
-        1. If `entity.tenant_id` is not set (None), set it to `self.tenant_id`.
-        2. If it IS set but different from `self.tenant_id`, raise CrossTenantWriteError.
-           (Never silently "fix" it: a wrong tenant id means a bug somewhere else.)
-        3. `self.session.add(entity)` and return it.
-
-        Note: a new object that was never given a tenant_id has `entity.tenant_id is None`.
+        A missing tenant_id is filled in. A different tenant_id is refused, never silently
+        "fixed": a wrong tenant id means a bug somewhere else.
         """
-        raise NotImplementedError("TODO(Irakli): implement tenant-safe add")
+        if entity.tenant_id is None:
+            entity.tenant_id = self.tenant_id
+        elif entity.tenant_id != self.tenant_id:
+            raise CrossTenantWriteError(
+                f"Entity belongs to tenant {entity.tenant_id}, not {self.tenant_id}"
+            )
+        self.session.add(entity)
+        return entity
 
 
 class CaseRepository(TenantScopedRepository[Case]):
