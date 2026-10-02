@@ -8,6 +8,7 @@ dead-letters the job.
 import logging
 from dataclasses import dataclass
 
+from app.ai import complaint_text
 from app.ai.output import InvalidModelOutputError, ValidatedAnalysis, validate_model_output
 from app.ai.prompt import MAX_MODEL_INPUT_CHARS
 from app.ai.provider import LlmProvider
@@ -48,7 +49,7 @@ class CaseAnalyser:
 
     def analyse(self, *, subject: str, body: str, sender_name: str | None) -> AnalysisOutcome:
         try:
-            redacted = redact(f"Subject: {subject}\n\n{body}", sender_name=sender_name)
+            redacted = redact(complaint_text.compose(subject, body), sender_name=sender_name)
         except RedactionError as error:
             # Fail closed (US-6.5): no model call at all.
             logger.error("Redaction failed; model not called", extra={"error_type": str(error)})

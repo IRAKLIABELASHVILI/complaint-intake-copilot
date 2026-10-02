@@ -10,6 +10,7 @@ import pytest
 from openai import OpenAI
 from pydantic import ValidationError
 
+from app.ai.complaint_text import compose, split
 from app.ai.factory import build_provider
 from app.ai.fake_provider import FakeLlmProvider
 from app.ai.openai_provider import OpenAiCompatibleProvider
@@ -169,3 +170,26 @@ def test_a_real_provider_is_built_from_settings_and_the_key_stays_secret() -> No
 
     assert (provider.name, provider.model) == ("azure_openai", "m1")
     assert "sk-secret" not in repr(settings)
+
+
+def test_fake_provider_quotes_the_body_before_the_subject() -> None:
+    text = redact(compose("My husband died", "He passed away in May. Please refund the fee."))
+
+    [indicator] = validate_model_output(FakeLlmProvider().complete(text), text.value).indicators
+
+    assert indicator.evidence_quote == "He passed away in May."
+
+
+def test_fake_provider_falls_back_to_the_subject_without_the_label() -> None:
+    text = redact(compose("Fee after my husband died", "Please refund the fee."))
+
+    [indicator] = validate_model_output(FakeLlmProvider().complete(text), text.value).indicators
+
+    assert indicator.evidence_quote == "Fee after my husband died"
+
+
+def test_composed_text_splits_back_into_subject_and_body() -> None:
+    assert split(compose("A subject", "Line one.\n\nLine two.")) == (
+        "A subject",
+        "Line one.\n\nLine two.",
+    )

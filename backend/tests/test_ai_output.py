@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from app.ai.complaint_text import compose
 from app.ai.output import InvalidModelOutputError, validate_model_output
 from app.domain.enums import Category, IndicatorType, Priority, VulnerabilityDriver
 
@@ -124,3 +125,13 @@ def test_the_rejection_reason_never_quotes_the_answer() -> None:
         validate_model_output(answer(category="SECRET-VALUE"), TEXT)
 
     assert "SECRET-VALUE" not in str(caught.value)
+
+
+def test_a_quote_of_the_subject_line_loses_our_label() -> None:
+    """The "Subject:" label is ours, not the customer's words: the handler sees only theirs."""
+    sent = compose("Charged after my husband died", "Please refund the fee.")
+    indicator = {"type": "bereavement", "evidence_quote": "Subject: Charged after my husband died"}
+
+    [kept] = validate_model_output(answer(vulnerability_indicators=[indicator]), sent).indicators
+
+    assert kept.evidence_quote == "Charged after my husband died"

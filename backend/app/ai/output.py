@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app.ai.complaint_text import without_label
 from app.domain.enums import Category, IndicatorType, Priority, VulnerabilityDriver
 from app.domain.evidence import quote_appears_in, squash_whitespace
 from app.domain.vulnerability import driver_for, suggested_priority
@@ -82,7 +83,7 @@ def _indicators_with_real_evidence(
     evidence (US-2.3). Whitespace differences (line breaks) are ignored; words are not."""
     kept: dict[tuple[IndicatorType, str], SuggestedIndicator] = {}
     for candidate in candidates:
-        quote = squash_whitespace(candidate.evidence_quote)
+        quote = squash_whitespace(without_label(candidate.evidence_quote))
         if not quote_appears_in(quote, sent_text):
             logger.warning(
                 "Indicator dropped: evidence not found in the text",

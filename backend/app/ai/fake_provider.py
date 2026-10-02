@@ -8,6 +8,7 @@ sentences from the text, as a well-behaved model's would be.
 import json
 import re
 
+from app.ai import complaint_text
 from app.domain.enums import Category, IndicatorType, Priority
 from app.domain.redaction import RedactedText
 
@@ -42,8 +43,8 @@ class FakeLlmProvider:
     model = "fake-keywords-v1"
 
     def complete(self, complaint: RedactedText, *, previous_error: str | None = None) -> str:
-        text = complaint.value
-        lowered = text.lower()
+        subject, body = complaint_text.split(complaint.value)
+        lowered = complaint.value.lower()
         category = next(
             (cat for cat, words in _CATEGORY_KEYWORDS if any(w in lowered for w in words)),
             Category.OTHER,
@@ -51,17 +52,22 @@ class FakeLlmProvider:
         indicators = [
             {"type": indicator_type.value, "evidence_quote": sentence}
             for indicator_type, words in _INDICATOR_KEYWORDS.items()
-            if (sentence := _first_sentence_containing(text, words))
+            if (sentence := _evidence(subject, body, words))
         ]
         priority = Priority.HIGH if category is Category.FRAUD_AND_SCAMS else Priority.MEDIUM
         return json.dumps(
             {
                 "category": category.value,
-                "summary": _summary(text, category),
+                "summary": _summary(subject, category),
                 "priority": priority.value,
                 "vulnerability_indicators": indicators,
             }
         )
+
+
+def _evidence(subject: str, body: str, words: tuple[str, ...]) -> str | None:
+    """Quote the customer's own words in the body first; the subject line only as a fallback."""
+    return _first_sentence_containing(body, words) or _first_sentence_containing(subject, words)
 
 
 def _first_sentence_containing(text: str, words: tuple[str, ...]) -> str | None:
@@ -72,7 +78,6 @@ def _first_sentence_containing(text: str, words: tuple[str, ...]) -> str | None:
     return None
 
 
-def _summary(text: str, category: Category) -> str:
-    subject = text.split("\n", 1)[0].removeprefix("Subject:").strip()
+def _summary(subject: str, category: Category) -> str:
     label = category.value.replace("_", " ")
     return f"Complaint about {label}: {subject}"[:400]
