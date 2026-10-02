@@ -1,7 +1,6 @@
-"""Database models (milestone 2: tenants, users, cases, audit events).
+"""Database models: tenants, users, cases, audit events (M2); outbox and processed messages (M4).
 
-Analyses, vulnerability indicators and processed_messages arrive with milestones 4 and 5,
-each with its own Alembic migration.
+Analyses and vulnerability indicators arrive with milestone 5, with their own Alembic migration.
 
 C# comparison: these are EF Core entity classes. `Mapped[str | None]` = nullable column.
 """
@@ -99,3 +98,32 @@ class AuditEvent(TenantScopedMixin, TimestampMixin, Base):
 
     # The relationship tells SQLAlchemy to INSERT the case before its audit events.
     case: Mapped[Case] = relationship()
+
+
+class OutboxMessage(TimestampMixin, Base):
+    """A message waiting to be published to the queue (transactional outbox).
+
+    It is written in the SAME transaction as the change that causes it, so a case can never exist
+    without its analysis job, even if RabbitMQ is down. The outbox relay publishes it later.
+    Not tenant-scoped: it is infrastructure, and the tenant id travels inside the payload.
+    """
+
+    __tablename__ = "outbox_messages"
+    __table_args__ = (Index("ix_outbox_messages_pending", "published_at", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)  # = message_id seen by consumers
+    queue: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    published_at: Mapped[datetime | None]
+    attempts: Mapped[int] = mapped_column(default=0)
+    last_error: Mapped[str | None] = mapped_column(String(200))
+
+
+class ProcessedMessage(Base):
+    """Message ids the worker has already handled. The primary key makes handling idempotent."""
+
+    __tablename__ = "processed_messages"
+
+    message_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    case_id: Mapped[uuid.UUID]
+    processed_at: Mapped[datetime] = mapped_column(default=utc_now)

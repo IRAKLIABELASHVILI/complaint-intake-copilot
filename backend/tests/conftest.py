@@ -21,6 +21,7 @@ from sqlalchemy.pool import StaticPool
 from app.api.deps import get_session, hash_token
 from app.db.base import Base
 from app.db.models import Tenant, User
+from app.db.session import build_engine
 from app.domain.enums import UserRole
 from app.main import app
 
@@ -28,7 +29,7 @@ from app.main import app
 def _build_test_engine() -> Engine:
     url = os.environ.get("TEST_DATABASE_URL")
     if url:
-        return create_engine(url)
+        return build_engine(url)
     # One shared in-memory connection, so every session sees the same database.
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool

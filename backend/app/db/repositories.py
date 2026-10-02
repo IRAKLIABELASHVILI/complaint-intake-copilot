@@ -14,7 +14,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.db.base import TenantScopedMixin
-from app.db.models import AuditEvent, Case, User
+from app.db.models import AuditEvent, Case, OutboxMessage, User
 from app.domain.enums import CaseStatus
 
 
@@ -99,3 +99,32 @@ class AuditRepository(TenantScopedRepository[AuditEvent]):
             .order_by(AuditEvent.created_at.desc())
         )
         return self.session.scalars(self._scoped(statement)).all()
+
+
+class OutboxRepository:
+    """System-level, deliberately NOT tenant-scoped: the relay publishes every tenant's messages.
+
+    Only infrastructure code (the case service's intake and the relay) uses it, never endpoints.
+    """
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, message: OutboxMessage) -> OutboxMessage:
+        self.session.add(message)
+        return message
+
+    def lock_pending(self, limit: int) -> Sequence[OutboxMessage]:
+        """Oldest unpublished messages, locked for this transaction.
+
+        SKIP LOCKED lets several relays run side by side without publishing the same row twice.
+        (SQLite, used in tests, ignores it; PostgreSQL honours it.)
+        """
+        statement = (
+            select(OutboxMessage)
+            .where(OutboxMessage.published_at.is_(None))
+            .order_by(OutboxMessage.created_at)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+        return self.session.scalars(statement).all()

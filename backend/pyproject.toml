@@ -12,6 +12,7 @@ dependencies = [
     "alembic>=1.13",
     "psycopg[binary]>=3.2",
     "tzdata>=2024.1",  # time zone data for zoneinfo; Windows and slim images have none
+    "pika>=1.3",  # RabbitMQ client
 ]
 
 [project.optional-dependencies]
@@ -44,6 +45,10 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = "migrations.*"
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["pika", "pika.*"]  # pika ships without type hints
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

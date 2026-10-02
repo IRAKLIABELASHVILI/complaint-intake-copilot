@@ -25,9 +25,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      rabbitmq:
+        image: rabbitmq:4-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: cic
+          RABBITMQ_DEFAULT_PASS: cic
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
 
     env:
-      DATABASE_URL: postgresql+psycopg://cic:cic@localhost:5432/cic
+      DATABASE_URL: postgresql+psycopg://cic:cic@127.0.0.1:5432/cic
 
     steps:
       - uses: actions/checkout@v7
@@ -58,7 +70,8 @@ jobs:
       - name: Tests on SQLite
         run: pytest
 
-      - name: Tests on PostgreSQL
+      - name: Tests on PostgreSQL and RabbitMQ
         env:
-          TEST_DATABASE_URL: postgresql+psycopg://cic:cic@localhost:5432/cic
+          TEST_DATABASE_URL: postgresql+psycopg://cic:cic@127.0.0.1:5432/cic
+          TEST_RABBITMQ_URL: amqp://cic:cic@127.0.0.1:5672/%2F
         run: pytest

@@ -20,7 +20,7 @@ Every user belongs to exactly one tenant (client firm).
 3. **Given** a received time in the future, an empty body, or an invalid sender email, **when** I submit, **then** I get `422` with a field-level error, and no case is created.
 4. **Given** I submit, **then** the case's `received_at` is the time I gave. If I gave none, it is the server time. It **cannot be changed afterwards**, because the deadlines depend on it.
 5. **Given** a case was created, **then** exactly one analysis job is published to the queue with the case id, tenant id and a correlation id.
-6. **Given** the queue is unavailable when the case is created, **then** the case is still saved and the failure is logged with the correlation id. The case can be re-queued later. *(Implementation choice, decided in milestone 4: outbox table, or a status the worker sweeps.)*
+6. **Given** the queue is unavailable when the case is created, **then** the case is still saved and the failure is logged with the correlation id. The case can be re-queued later. *(Decided in milestone 4: a transactional outbox. The API never calls the broker; the relay keeps retrying until it is back.)*
 7. **Given** I submit the same email twice with the same `external_message_id`, **then** the second request returns the existing case and does not create a duplicate.
 
 ---

@@ -12,7 +12,12 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 from app.db.models import AuditEvent, Case, User
-from app.db.repositories import AuditRepository, CaseRepository, UserRepository
+from app.db.repositories import (
+    AuditRepository,
+    CaseRepository,
+    OutboxRepository,
+    UserRepository,
+)
 from app.domain.business_calendar import BusinessCalendar, HolidayDataUnavailableError
 from app.domain.deadlines import (
     CaseDeadlines,
@@ -22,6 +27,7 @@ from app.domain.deadlines import (
 )
 from app.domain.enums import AuditSource
 from app.logging_config import correlation_id_var
+from app.messaging.outbox import analysis_job_message
 from app.schemas.cases import CaseCreate
 
 logger = logging.getLogger(__name__)
@@ -54,6 +60,7 @@ class CaseService:
         self.cases = CaseRepository(session, actor.tenant_id)
         self.users = UserRepository(session, actor.tenant_id)
         self.audit = AuditRepository(session, actor.tenant_id)
+        self.outbox = OutboxRepository(session)
 
     def create(self, data: CaseCreate) -> CreateCaseResult:
         if data.external_message_id is not None:
@@ -80,10 +87,12 @@ class CaseService:
                 ),
             )
         )
-        # Milestone 4: publish the analysis job.
         self._record(case, action="case_created", source=AuditSource.SYSTEM)
+        correlation_id = correlation_id_var.get() or uuid.uuid4().hex
+        self.outbox.add(analysis_job_message(case, correlation_id))
 
-        self.session.commit()  # case + audit event in ONE transaction (US-3.6)
+        # Case + audit event + analysis job in ONE transaction (US-3.6, US-1.5).
+        self.session.commit()
         logger.info("Case created", extra={"case_id": case.id, "tenant_id": case.tenant_id})
         return CreateCaseResult(case=case, created=True)
 

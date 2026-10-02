@@ -12,7 +12,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = "postgresql+psycopg://cic:cic@localhost:5432/cic"
+    # 127.0.0.1, not "localhost": Docker publishes the ports on IPv4 only, and on Windows
+    # "localhost" tries IPv6 first and can hang for minutes before falling back.
+    database_url: str = "postgresql+psycopg://cic:cic@127.0.0.1:5432/cic"
+    rabbitmq_url: str = "amqp://cic:cic@127.0.0.1:5672/%2F"
     log_level: str = "INFO"
     environment: str = "local"
 

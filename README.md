@@ -2,10 +2,11 @@
 
 AI-assisted intake for regulated complaints: each complaint email becomes a case with UK regulatory deadlines (FCA DISP 1.5 / 1.6), a suggested category, priority and vulnerability flags with evidence. Personal data is redacted before it reaches the model, and a person makes every final decision.
 
-> 🚧 Work in progress. Milestones 1–3 are complete (backend foundation, tenant isolation, deadline engine); milestone 4 (queue and worker) is next.
+> 🚧 Work in progress. Milestones 1–4 are complete (backend foundation, tenant isolation, deadline engine, queue and worker); milestone 5 (AI analysis with PII redaction) is next.
 
 **Stack:** Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 · Alembic · PostgreSQL · Docker Compose · GitHub Actions (ruff, mypy, pytest)
-**Planned:** RabbitMQ worker · OpenAI-compatible LLM provider with PII redaction · React + TypeScript
+**Messaging:** RabbitMQ · transactional outbox · idempotent worker with retries and a dead-letter queue
+**Planned:** OpenAI-compatible LLM provider with PII redaction · React + TypeScript
 
 ## Run it
 
@@ -15,9 +16,10 @@ Requires Docker.
 docker compose up --build
 ```
 
-This starts PostgreSQL, applies the Alembic migrations, loads fictional demo data and serves the API.
+This starts PostgreSQL and RabbitMQ, applies the Alembic migrations, loads fictional demo data, serves the API, and runs the outbox relay and the analysis worker.
 
 - **API docs (Swagger UI):** http://localhost:8000/docs
+- **RabbitMQ management UI:** http://localhost:15672 (`cic` / `cic`, local only): queues `case.analysis`, `case.analysis.retry`, `case.analysis.dead`
 - **Demo tokens:** click **Authorize** in Swagger UI and paste one of these.
 
 | Tenant (fictional) | Role | Token |
@@ -41,6 +43,16 @@ ruff check . && mypy app tests
 ```
 
 CI runs the same checks, applies and verifies the migrations, and runs the full test suite against **PostgreSQL** on every push.
+
+## Background processing
+
+A new case returns at once; its analysis runs in the background (US-1).
+
+1. The case, its audit event and an **outbox** row commit in one transaction. The API never calls RabbitMQ, so a broker outage cannot lose a case or a job.
+2. The **outbox relay** publishes pending rows to the `case.analysis` queue (publisher confirms, persistent messages).
+3. The **worker** handles each job once: a `processed_messages` row makes redeliveries harmless. It loads the case by case id **and** tenant id. Transient failures retry with backoff (2 s, 4 s, 8 s, 16 s) through a retry queue; invalid messages and permanent failures go to the dead-letter queue.
+
+Milestone 4 moves the case from `new` to `analysing`; milestone 5 adds the analysis itself.
 
 ## Regulatory deadlines
 

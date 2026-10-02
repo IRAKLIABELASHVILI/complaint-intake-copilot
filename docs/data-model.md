@@ -1,7 +1,7 @@
 # Data model
 
 PostgreSQL. All ids are UUIDs. All timestamps are `timestamptz`, stored in UTC.
-Every table except `tenants` and `processed_messages` has a non-null, indexed `tenant_id`.
+Every table except `tenants`, `outbox_messages` and `processed_messages` has a non-null, indexed `tenant_id`. The two messaging tables are infrastructure: the tenant id travels inside the message, and the worker loads the case through the tenant-scoped repository.
 
 ```mermaid
 erDiagram
@@ -93,8 +93,17 @@ erDiagram
         string correlation_id
         timestamptz created_at
     }
+    OUTBOX_MESSAGES {
+        uuid id PK "the message_id consumers see"
+        string queue
+        json payload "ids only: message, case, tenant, correlation"
+        timestamptz published_at "null until the relay publishes it"
+        int attempts
+        string last_error "exception type only"
+        timestamptz created_at
+    }
     PROCESSED_MESSAGES {
-        string message_id PK
+        uuid message_id PK
         uuid case_id
         timestamptz processed_at
     }
@@ -151,6 +160,7 @@ Allowed transitions live in **one** place in code. Any other transition is rejec
 
 - **Suggestions and decisions are kept separate.** `case_analyses.suggested_*` is what the AI said. `cases.final_*` is what a person decided. Overriding a suggestion never destroys it, so we can measure AI accuracy later.
 - **The original text is kept separate from the redacted text.** `cases.body` is the original. `case_analyses.redacted_input` is what was sent to the model.
-- **`processed_messages` gives the worker idempotency.** Before processing a message, the worker inserts its `message_id`. If the insert hits a unique violation, the message was already handled: ack it and skip.
+- **`outbox_messages` is a transactional outbox.** The analysis job is inserted in the same transaction as the case, so a case can never exist without its job. A separate relay publishes pending rows to RabbitMQ.
+- **`processed_messages` gives the worker idempotency.** The worker records each `message_id` in the same transaction as its work. A message seen before is acknowledged and skipped; a concurrent duplicate hits the primary key and is skipped too.
 - **Deadlines are stored on the case** (`src_deadline_at`, `final_response_deadline_at`), calculated once at intake, so they can be indexed for the dashboard. "Business days remaining" is calculated when the case is read, because it depends on today's date.
 - **Bank holidays are not a table** in v1. They come from a JSON file in the repo, taken from the gov.uk feed.

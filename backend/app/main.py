@@ -4,7 +4,6 @@ C# comparison: this is Program.cs: build the app, register middleware, map the r
 """
 
 import logging
-import re
 import uuid
 from collections.abc import Awaitable, Callable
 
@@ -12,12 +11,11 @@ from fastapi import FastAPI, Request, Response
 
 from app.api.routes import cases, system
 from app.config import get_settings
-from app.logging_config import configure_logging, correlation_id_var
+from app.logging_config import CORRELATION_ID_PATTERN, configure_logging, correlation_id_var
 
 logger = logging.getLogger(__name__)
 
 CORRELATION_HEADER = "X-Correlation-ID"
-_VALID_CORRELATION_ID = re.compile(r"^[A-Za-z0-9\-_.]{1,64}$")
 
 
 def create_app() -> FastAPI:
@@ -36,7 +34,7 @@ def create_app() -> FastAPI:
     ) -> Response:
         # Accept the caller's id only if it looks safe; otherwise make a new one.
         incoming = request.headers.get(CORRELATION_HEADER, "")
-        correlation_id = incoming if _VALID_CORRELATION_ID.match(incoming) else uuid.uuid4().hex
+        correlation_id = incoming if CORRELATION_ID_PATTERN.match(incoming) else uuid.uuid4().hex
         token = correlation_id_var.set(correlation_id)
         try:
             response = await call_next(request)

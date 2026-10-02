@@ -87,6 +87,7 @@ sequenceDiagram
 | **FastAPI + Pydantic v2** | Contact Web's target stack. Typed request and response models generate the OpenAPI contract automatically. | ASP.NET Core minimal APIs + DTOs + Swashbuckle |
 | **SQLAlchemy 2.0 (typed `Mapped[...]`) + Alembic** | Contact Web already uses both. Alembic gives versioned migrations. | EF Core + EF migrations |
 | **Separate worker process** | AI calls are slow and can fail. They must not block the HTTP request, and they must scale on their own. | `BackgroundService` / Worker Service consuming RabbitMQ |
+| **Transactional outbox + relay** | The case and its job commit together; the API keeps working when the broker is down. | Outbox in MassTransit / NServiceBus |
 | **RabbitMQ behind a `MessageBus` interface** | I already know RabbitMQ from .NET. The interface means Azure Service Bus is a new class, not a rewrite. | `IMessageBus` with a RabbitMQ implementation |
 | **`LLMProvider` interface + fake provider** | Tests are deterministic, and anyone can run the demo without a key. OpenAI and Azure OpenAI share one implementation. | `ILlmClient` + a test double |
 | **Redaction before the provider call** | The provider interface only ever receives redacted text. A privacy bug cannot be "fixed" by accident somewhere else. | A decorator around the client |
@@ -96,7 +97,8 @@ sequenceDiagram
 
 ## Known trade-offs (to discuss in interviews)
 
-- **Publishing after the database commit is not atomic.** If the publish fails after the commit, the case exists but no job was sent. Fix options: a transactional outbox table, or a sweeper that re-queues cases stuck in `new`. This is decided in milestone 4.
+- **Delivery is at-least-once, not exactly-once.** Decided in milestone 4: a **transactional outbox**. The job is saved with the case in one transaction, and a relay publishes it, so the API never depends on RabbitMQ (US-1.6). A crash between publishing and marking the row published sends the job twice, which the worker absorbs through `processed_messages`. The relay polls every second: simple, at the cost of up to a second of delay. PostgreSQL `LISTEN/NOTIFY` would remove it.
+- **Retries use one retry queue with per-message TTLs.** RabbitMQ only expires the message at the head of a queue, so a short delay can wait behind a longer one. Retries are rare, so this only ever delays, never loses. Per-delay queues or the delayed-message plugin would be exact.
 - **Regex redaction misses some names.** A production system would add NER (e.g. Microsoft Presidio) and use Azure OpenAI in a UK region.
 - **Shared-schema multi-tenancy** (a `tenant_id` column) is the simplest model to start with. PostgreSQL row-level security would add defence in depth and is a stretch goal.
 - **Simple token auth** with seeded users. Production would use Entra ID / OIDC.
@@ -111,9 +113,9 @@ complaint-intake-copilot/
 │   │   ├── domain/         # deadlines, redaction, status rules, pure logic
 │   │   ├── reference_data/ # bank holiday file (from gov.uk) and its loader
 │   │   ├── db/             # SQLAlchemy models, session, repositories
-│   │   ├── messaging/      # MessageBus interface, RabbitMQ implementation
+│   │   ├── messaging/      # job contract, outbox + relay, MessageBus, RabbitMQ adapter
 │   │   ├── ai/             # LLMProvider, fake + OpenAI providers, schemas
-│   │   ├── worker/         # consumer entry point
+│   │   ├── worker/         # consumer (ack / retry / dead-letter), job handler, entry point
 │   │   └── schemas/        # Pydantic request and response models
 │   ├── migrations/         # Alembic
 │   ├── tests/

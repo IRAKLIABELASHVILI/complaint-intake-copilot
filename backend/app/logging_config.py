@@ -7,14 +7,29 @@ without passing it through every function.
 
 import json
 import logging
+import re
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
 
 correlation_id_var: ContextVar[str | None] = ContextVar("correlation_id", default=None)
 
+# What a correlation id may look like when it comes from outside (a header or a message).
+CORRELATION_ID_PATTERN = re.compile(r"^[A-Za-z0-9\-_.]{1,64}$")
+
 # Extra fields that may be passed with logger.info("...", extra={...}) and should be emitted.
-_ALLOWED_EXTRA_FIELDS = ("tenant_id", "case_id", "user_id", "status_code", "path", "method")
+_ALLOWED_EXTRA_FIELDS = (
+    "tenant_id",
+    "case_id",
+    "user_id",
+    "status_code",
+    "path",
+    "method",
+    "message_id",
+    "attempt",
+    "outcome",
+    "error_type",
+)
 
 
 class JsonFormatter(logging.Formatter):
@@ -41,3 +56,5 @@ def configure_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level)
+    # pika logs every connection step at INFO; our own code logs what matters.
+    logging.getLogger("pika").setLevel(logging.WARNING)

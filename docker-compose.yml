@@ -1,3 +1,13 @@
+# Local demo stack. The credentials below are local-only defaults, not secrets.
+
+x-backend: &backend
+  build: ./backend
+  image: complaint-intake-copilot-backend
+  environment:
+    DATABASE_URL: postgresql+psycopg://cic:cic@db:5432/cic
+    RABBITMQ_URL: amqp://cic:cic@rabbitmq:5672/%2F
+    LOG_LEVEL: INFO
+
 services:
   db:
     image: postgres:16-alpine
@@ -6,7 +16,7 @@ services:
       POSTGRES_PASSWORD: cic
       POSTGRES_DB: cic
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # reachable from this machine only
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -15,15 +25,54 @@ services:
       timeout: 3s
       retries: 20
 
-  api:
-    build: ./backend
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
     environment:
-      DATABASE_URL: postgresql+psycopg://cic:cic@db:5432/cic
-      LOG_LEVEL: INFO
+      RABBITMQ_DEFAULT_USER: cic
+      RABBITMQ_DEFAULT_PASS: cic
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"  # management UI: http://localhost:15672 (cic / cic)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Applies migrations, seeds demo data, serves the API. It never talks to RabbitMQ.
+  api:
+    <<: *backend
     ports:
       - "8000:8000"
     depends_on:
       db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # Publishes analysis jobs from the outbox table to RabbitMQ.
+  outbox-relay:
+    <<: *backend
+    command: ["python", "-m", "app.messaging.run_outbox_relay"]
+    restart: unless-stopped  # a safety net; the relay already retries on its own
+    depends_on:
+      api:
+        condition: service_healthy  # migrations are applied
+      rabbitmq:
+        condition: service_healthy
+
+  # Consumes analysis jobs.
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.worker"]
+    restart: unless-stopped  # a safety net; the worker already reconnects on its own
+    depends_on:
+      api:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
 volumes:
