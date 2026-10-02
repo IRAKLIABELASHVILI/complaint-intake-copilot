@@ -6,6 +6,7 @@ C# comparison: FastAPI's `Depends(...)` is constructor injection per request. A 
 
 import hashlib
 from collections.abc import Iterator
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
@@ -13,8 +14,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import User
+from app.db.models import Tenant, User
 from app.db.session import new_session
+from app.domain.business_calendar import BusinessCalendar
+from app.reference_data.bank_holidays import calendar_for_region
 from app.services.case_service import CaseService
 
 _bearer = HTTPBearer(auto_error=False)
@@ -57,8 +60,26 @@ def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-def get_case_service(session: SessionDep, user: CurrentUser) -> CaseService:
-    return CaseService(session, user)
+def get_now() -> datetime:
+    """The current time. A dependency, so tests can freeze the clock (C#: TimeProvider)."""
+    return datetime.now(UTC)
+
+
+NowDep = Annotated[datetime, Depends(get_now)]
+
+
+def get_business_calendar(session: SessionDep, user: CurrentUser) -> BusinessCalendar:
+    """The bank holidays of the user's tenant. The region comes from the tenant row only."""
+    tenant = session.get_one(Tenant, user.tenant_id)
+    return calendar_for_region(tenant.bank_holiday_region)
+
+
+def get_case_service(
+    session: SessionDep,
+    user: CurrentUser,
+    calendar: Annotated[BusinessCalendar, Depends(get_business_calendar)],
+) -> CaseService:
+    return CaseService(session, user, calendar)
 
 
 CaseServiceDep = Annotated[CaseService, Depends(get_case_service)]

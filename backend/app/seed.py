@@ -17,8 +17,9 @@ from app.api.deps import hash_token
 from app.config import get_settings
 from app.db.models import Tenant, User
 from app.db.session import new_session
-from app.domain.enums import UserRole
+from app.domain.enums import BankHolidayRegion, UserRole
 from app.logging_config import configure_logging
+from app.reference_data.bank_holidays import calendar_for_region
 from app.schemas.cases import CaseCreate
 from app.services.case_service import CaseService
 
@@ -49,7 +50,12 @@ def seed(session: Session) -> None:
             logger.info("Tenant already seeded, skipping", extra={"tenant_id": slug})
             continue
 
-        tenant = Tenant(id=uuid.uuid4(), name=name, slug=slug)
+        tenant = Tenant(
+            id=uuid.uuid4(),
+            name=name,
+            slug=slug,
+            bank_holiday_region=BankHolidayRegion.ENGLAND_AND_WALES,
+        )
         session.add(tenant)
         users = {
             key: User(
@@ -67,7 +73,7 @@ def seed(session: Session) -> None:
         session.commit()
 
         handler = next(user for user in users.values() if user.role == UserRole.HANDLER)
-        service = CaseService(session, handler)
+        service = CaseService(session, handler, calendar_for_region(tenant.bank_holiday_region))
         for index, complaint in enumerate(c for c in complaints if c["tenant"] == slug):
             service.create(
                 CaseCreate(

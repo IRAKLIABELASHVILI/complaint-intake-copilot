@@ -16,6 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TenantScopedMixin, TimestampMixin, str_enum, utc_now
 from app.domain.enums import (
     AuditSource,
+    BankHolidayRegion,
     CaseStatus,
     Category,
     Priority,
@@ -30,7 +31,9 @@ class Tenant(TimestampMixin, Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(200))
     slug: Mapped[str] = mapped_column(String(64), unique=True)
-    bank_holiday_region: Mapped[str] = mapped_column(String(32), default="england-and-wales")
+    bank_holiday_region: Mapped[BankHolidayRegion] = mapped_column(
+        str_enum(BankHolidayRegion), default=BankHolidayRegion.ENGLAND_AND_WALES
+    )
 
 
 class User(TenantScopedMixin, TimestampMixin, Base):
@@ -65,7 +68,7 @@ class Case(TenantScopedMixin, TimestampMixin, Base):
     status: Mapped[CaseStatus] = mapped_column(str_enum(CaseStatus), default=CaseStatus.NEW)
     assigned_to_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
 
-    # Filled in by the deadline engine (milestone 3).
+    # Set once at intake by the deadline engine (app/domain/deadlines.py), stored for indexing.
     src_deadline_at: Mapped[datetime | None]
     final_response_deadline_at: Mapped[datetime | None]
 

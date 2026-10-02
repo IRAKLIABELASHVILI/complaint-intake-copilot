@@ -13,6 +13,13 @@ from sqlalchemy.orm import Session
 
 from app.db.models import AuditEvent, Case, User
 from app.db.repositories import AuditRepository, CaseRepository, UserRepository
+from app.domain.business_calendar import BusinessCalendar, HolidayDataUnavailableError
+from app.domain.deadlines import (
+    CaseDeadlines,
+    DeadlineTracking,
+    calculate_deadlines,
+    track_deadlines,
+)
 from app.domain.enums import AuditSource
 from app.logging_config import correlation_id_var
 from app.schemas.cases import CaseCreate
@@ -40,9 +47,10 @@ def new_reference(received_at: datetime) -> str:
 
 
 class CaseService:
-    def __init__(self, session: Session, actor: User) -> None:
+    def __init__(self, session: Session, actor: User, calendar: BusinessCalendar) -> None:
         self.session = session
         self.actor = actor
+        self.calendar = calendar  # the actor's tenant's bank holidays
         self.cases = CaseRepository(session, actor.tenant_id)
         self.users = UserRepository(session, actor.tenant_id)
         self.audit = AuditRepository(session, actor.tenant_id)
@@ -55,6 +63,7 @@ class CaseService:
                 return CreateCaseResult(case=existing, created=False)
 
         received_at = (data.received_at or datetime.now(UTC)).astimezone(UTC)
+        deadlines = self._calculate_deadlines(received_at)
         case = self.cases.add(
             Case(
                 id=uuid.uuid4(),
@@ -65,14 +74,35 @@ class CaseService:
                 sender_email=str(data.sender_email),
                 sender_name=data.sender_name,
                 received_at=received_at,
+                src_deadline_at=deadlines.src_deadline_at if deadlines else None,
+                final_response_deadline_at=(
+                    deadlines.final_response_deadline_at if deadlines else None
+                ),
             )
         )
-        # Milestone 3: calculate deadlines here. Milestone 4: publish the analysis job.
+        # Milestone 4: publish the analysis job.
         self._record(case, action="case_created", source=AuditSource.SYSTEM)
 
         self.session.commit()  # case + audit event in ONE transaction (US-3.6)
         logger.info("Case created", extra={"case_id": case.id, "tenant_id": case.tenant_id})
         return CreateCaseResult(case=case, created=True)
+
+    def deadline_tracking(self, case: Case, now: datetime) -> DeadlineTracking | None:
+        """Business days remaining / overdue / resolved in time. None when deadlines are unknown."""
+        if case.src_deadline_at is None or case.final_response_deadline_at is None:
+            return None
+        deadlines = CaseDeadlines(case.src_deadline_at, case.final_response_deadline_at)
+        try:
+            return track_deadlines(
+                deadlines,
+                now=now,
+                calendar=self.calendar,
+                resolved_at=case.resolved_at,
+                resolution_type=case.resolution_type,
+            )
+        except HolidayDataUnavailableError:
+            logger.warning("Bank holiday data out of range", extra={"case_id": case.id})
+            return None
 
     def get(self, case_id: uuid.UUID) -> Case:
         case = self.cases.get(case_id)
@@ -100,6 +130,18 @@ class CaseService:
             )
             self.session.commit()
         return case
+
+    def _calculate_deadlines(self, received_at: datetime) -> CaseDeadlines | None:
+        """The case is saved even when deadlines cannot be calculated (US-1): an unknown deadline
+        stays empty and is logged as an error, rather than being guessed."""
+        try:
+            return calculate_deadlines(received_at, self.calendar)
+        except HolidayDataUnavailableError:
+            logger.error(
+                "Deadlines not set: bank holiday data out of range",
+                extra={"tenant_id": self.actor.tenant_id},
+            )
+            return None
 
     def _record(
         self,

@@ -53,6 +53,26 @@ class CaseAssign(BaseModel):
     assigned_to_user_id: uuid.UUID | None
 
 
+class DeadlineProgressRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    deadline_at: datetime
+    business_days_remaining: int = Field(description="0 = due today; negative = days overdue")
+    is_overdue: bool
+
+
+class DeadlineTrackingRead(BaseModel):
+    """Calculated on every read, because it depends on today's date (US-4.6, US-4.7)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    src: DeadlineProgressRead | None = Field(description="Null once the case is resolved")
+    final_response: DeadlineProgressRead | None = Field(
+        description="Null once the case is resolved"
+    )
+    resolved_in_time: bool | None = Field(description="Null while the case is open")
+
+
 class CaseRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -74,6 +94,7 @@ class CaseRead(BaseModel):
     resolution_type: ResolutionType | None
     created_at: datetime
     updated_at: datetime
+    deadline_tracking: DeadlineTrackingRead | None = None
 
 
 class CaseSummary(BaseModel):
@@ -90,6 +111,7 @@ class CaseSummary(BaseModel):
     assigned_to_user_id: uuid.UUID | None
     src_deadline_at: datetime | None
     final_response_deadline_at: datetime | None
+    deadline_tracking: DeadlineTrackingRead | None = None
 
 
 class CaseList(BaseModel):

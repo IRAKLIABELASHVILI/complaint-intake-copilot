@@ -2,7 +2,7 @@
 
 AI-assisted intake for regulated complaints: each complaint email becomes a case with UK regulatory deadlines (FCA DISP 1.5 / 1.6), a suggested category, priority and vulnerability flags with evidence. Personal data is redacted before it reaches the model, and a person makes every final decision.
 
-> 🚧 Work in progress. Milestone 2 (backend foundation, tenant isolation) is complete; milestone 3 (deadline engine) is next.
+> 🚧 Work in progress. Milestones 1–3 are complete (backend foundation, tenant isolation, deadline engine); milestone 4 (queue and worker) is next.
 
 **Stack:** Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 · Alembic · PostgreSQL · Docker Compose · GitHub Actions (ruff, mypy, pytest)
 **Planned:** RabbitMQ worker · OpenAI-compatible LLM provider with PII redaction · React + TypeScript
@@ -41,6 +41,22 @@ ruff check . && mypy app tests
 ```
 
 CI runs the same checks, applies and verifies the migrations, and runs the full test suite against **PostgreSQL** on every push.
+
+## Regulatory deadlines
+
+Every case gets two deadlines at intake, calculated in UK time by pure functions in [`app/domain/deadlines.py`](backend/app/domain/deadlines.py):
+
+- **Summary resolution (SRC):** 17:00 on the third business day after the day of receipt (DISP 1.5.1R)
+- **Final response:** end of the day, 8 weeks after receipt (DISP 1.6.2R)
+
+Business days skip weekends and the tenant's regional UK bank holidays. Each read of a case adds a `deadline_tracking` block: business days remaining, overdue, or resolved in time.
+
+Bank holidays come from a local copy of the gov.uk feed. The app never calls gov.uk at runtime. To refresh the file (validated before it is written):
+
+```bash
+cd backend
+python -m app.reference_data.refresh_bank_holidays
+```
 
 ## Documentation
 

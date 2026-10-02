@@ -109,6 +109,7 @@ complaint-intake-copilot/
 │   ├── app/
 │   │   ├── api/            # routers, dependencies (auth, tenant)
 │   │   ├── domain/         # deadlines, redaction, status rules, pure logic
+│   │   ├── reference_data/ # bank holiday file (from gov.uk) and its loader
 │   │   ├── db/             # SQLAlchemy models, session, repositories
 │   │   ├── messaging/      # MessageBus interface, RabbitMQ implementation
 │   │   ├── ai/             # LLMProvider, fake + OpenAI providers, schemas

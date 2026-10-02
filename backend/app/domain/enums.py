@@ -44,6 +44,14 @@ class ResolutionType(StrEnum):
     FINAL_RESPONSE = "final_response"
 
 
+class BankHolidayRegion(StrEnum):
+    """UK bank holidays differ by region. Values match the keys of the gov.uk feed."""
+
+    ENGLAND_AND_WALES = "england-and-wales"
+    SCOTLAND = "scotland"
+    NORTHERN_IRELAND = "northern-ireland"
+
+
 class AuditSource(StrEnum):
     SYSTEM = "system"
     ACCEPTED_SUGGESTION = "accepted_suggestion"

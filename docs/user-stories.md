@@ -88,6 +88,13 @@ Every user belongs to exactly one tenant (client firm).
 
 > **Verified 2026-10-01** against `https://www.gov.uk/bank-holidays.json` (england-and-wales): Christmas Day is 2026-12-25 (Friday). Boxing Day is the substitute day 2026-12-28 (Monday).
 
+**Implementation decisions (milestone 3)**
+
+- "Business days remaining" counts business days after today up to and including the deadline day: `0` means due today.
+- A deadline missed earlier today (e.g. 18:00 against 17:00) counts as `-1`, so an overdue value is always negative.
+- "Resolved in time" compares `resolved_at` with the SRC deadline when the resolution is an SRC, and with the final response deadline otherwise.
+- If the bank holiday file does not cover a date, the deadline is **left empty and an error is logged**, never guessed. The case itself is still saved (US-1).
+
 ---
 
 ## US-5: Team lead dashboard
