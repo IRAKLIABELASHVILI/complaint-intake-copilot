@@ -7,6 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# The pip bundled with the base image has known vulnerabilities (found by pip-audit): upgrade it.
+RUN pip install --upgrade "pip>=26.2"
+
 # Install only the dependencies first, so this layer stays cached when only the code changes.
 # (pip needs a package to install, so we install an empty one and then remove it.)
 COPY pyproject.toml ./

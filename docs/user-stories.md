@@ -140,6 +140,8 @@ Every user belongs to exactly one tenant (client firm).
    - UK bank account numbers (8 digits) and sort codes (`12-34-56`) → `[ACCOUNT_1]`, `[SORT_CODE_1]`
    - UK postcodes → `[POSTCODE_1]`
    - the sender's name, and names after greetings or sign-offs ("Dear …", "Regards, …") → `[NAME_1]`
+   - National Insurance numbers (valid HMRC format only) → `[NI_NUMBER_1]` *(added in the milestone 5 security review)*
+   - dates **introduced as a date of birth** ("DOB …", "born on …") → `[DATE_OF_BIRTH_1]`. Other dates are kept: they are the complaint's timeline. *(added in the milestone 5 security review)*
 2. The same value gets the same placeholder throughout the text. If the same email appears twice, both become `[EMAIL_1]`.
 3. There is a **unit test for each data type**, including at least one "should NOT redact" case. For example, a date like `12-03-2026` is not a sort code, and an amount like `£1,250.00` is not an account number.
 4. The **original** complaint stays in the database. The **redacted** text sent to the model is also stored on the analysis record, so we can prove what left our system.

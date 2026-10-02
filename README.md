@@ -43,7 +43,7 @@ pytest                         # fast, uses in-memory SQLite
 ruff check . && mypy app tests
 ```
 
-CI runs the same checks, applies and verifies the migrations, and runs the full test suite against **PostgreSQL** on every push.
+CI runs the same checks, audits every dependency for known vulnerabilities (`pip-audit`), applies and verifies the migrations, and runs the full test suite against **PostgreSQL** and **RabbitMQ** on every push.
 
 ## Background processing
 
@@ -84,6 +84,8 @@ LLM_BASE_URL=                # Azure: https://<resource>.openai.azure.com/openai
 ### Known limitations (honest)
 
 - **Names in free text are not always caught.** Regex redaction catches the sender's name and names after greetings and sign-offs, but not a relative mentioned in passing ("my husband Peter"). A production system would add an NER model (e.g. Microsoft Presidio) and Azure OpenAI with UK data residency.
+- **Not every kind of personal data has a rule.** Emails, phones, cards, accounts, sort codes, postcodes, names, National Insurance numbers and dates of birth do. Street addresses (beyond the postcode) and IBANs do not yet.
+- **Authentication is deliberately simple:** static, hashed bearer tokens for seeded demo users. Production would use Entra ID / OIDC, with rate limiting and HTTPS in front.
 - **Prompt injection is contained, not prevented.** The complaint is fenced as data and the model is told to ignore instructions in it. What protects the firm is the rest: strict output validation, evidence checks, and a person making every decision.
 
 ## Regulatory deadlines

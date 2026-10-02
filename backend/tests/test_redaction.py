@@ -105,6 +105,72 @@ def test_short_or_non_uk_numbers_are_not_phone_numbers(text: str) -> None:
     assert r(text) == text
 
 
+# --- National Insurance numbers ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "ni_number", ["AB 12 34 56 C", "AB123456C", "ab 123456 c", "JG 10 20 30 D"]
+)
+def test_national_insurance_numbers_are_redacted(ni_number: str) -> None:
+    assert r(f"My NI number is {ni_number}.") == "My NI number is [NI_NUMBER_1]."
+
+
+def test_the_same_ni_number_written_two_ways_is_one_placeholder() -> None:
+    assert r("AB 12 34 56 C, i.e. AB123456C") == "[NI_NUMBER_1], i.e. [NI_NUMBER_1]"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Ref GB 12 34 56 A",  # GB is never issued as a prefix
+        "QQ 12 34 56 C",  # Q is never issued (QQ is HMRC's dummy example)
+        "AB 12 34 56 E",  # the last letter is only ever A-D
+        "Code XAB 12 34 56 C9",  # part of a longer code
+    ],
+)
+def test_things_that_only_look_like_ni_numbers_are_kept(text: str) -> None:
+    assert r(text) == text
+
+
+# --- Dates of birth ------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Date of birth: 12/03/1980",
+        "My date of birth is 12.03.1980",
+        "DOB 12-03-80",
+        "D.O.B: 1 Jan 1990",
+        "I was born on 3rd May 1975",
+        "born March 12, 1980",
+    ],
+)
+def test_dates_of_birth_are_redacted_and_the_label_is_kept(text: str) -> None:
+    redacted = r(text)
+
+    assert redacted.endswith("[DATE_OF_BIRTH_1]")
+    assert not any(char.isdigit() for char in redacted.replace("[DATE_OF_BIRTH_1]", ""))
+
+
+def test_a_date_of_birth_is_not_mistaken_for_a_sort_code() -> None:
+    assert r("DOB 12-03-80, sort code 20-45-67") == (
+        "DOB [DATE_OF_BIRTH_1], sort code [SORT_CODE_1]"
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I called on 12-03-2026 and again on 3rd May 2026.",
+        "The fee was taken on 01/09/2026.",
+        "My account was opened in March 1999.",
+    ],
+)
+def test_other_dates_are_kept_because_they_are_the_complaints_timeline(text: str) -> None:
+    assert r(text) == text
+
+
 # --- Postcodes -----------------------------------------------------------------------------------
 
 

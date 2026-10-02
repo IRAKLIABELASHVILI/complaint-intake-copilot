@@ -51,7 +51,13 @@ jobs:
           cache-dependency-path: backend/pyproject.toml
 
       - name: Install
-        run: pip install -e ".[dev]"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Dependency audit (pip-audit)
+        # Fails the build if any installed package has a known vulnerability.
+        run: pip-audit --skip-editable
 
       - name: Lint (ruff)
         run: |

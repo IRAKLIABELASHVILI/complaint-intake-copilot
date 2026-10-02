@@ -4,7 +4,11 @@ Each personal value becomes a typed, numbered placeholder such as [EMAIL_1]. The
 gets the same placeholder within one complaint, so the model can still follow the story.
 
 Rules run in a fixed order, most specific first: a card number must be recognised before its
-digits could look like a phone or account number.
+digits could look like a phone or account number, and "DOB 12-03-80" must be read as a date of
+birth before it could look like a sort code.
+
+Other dates are kept: "I called on 12-03-2026" is the complaint's timeline, and a date alone does
+not identify anyone. Only a date introduced as a date of birth is redacted.
 
 Honest limitation: names are only caught when they are the sender's name or follow a greeting or
 sign-off. Other names in free text (e.g. a relative mentioned in passing) are not. A production
@@ -30,6 +34,25 @@ _NOT_NAMES: Final = frozenset(
 )
 
 _EMAIL = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+# National Insurance number: 2 letters, 6 digits, A-D. HMRC never issues D, F, I, Q, U or V, nor O
+# as the second letter, nor the prefixes in the lookahead.
+_NI_NUMBER = re.compile(
+    r"\b(?!BG|GB|KN|NK|NT|TN|ZZ)[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]"
+    r"[ \t]?\d{2}[ \t]?\d{2}[ \t]?\d{2}[ \t]?[A-D]\b",
+    re.IGNORECASE,
+)
+_MONTH = r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?"
+_ORDINAL = r"(?:st|nd|rd|th)?"
+_DATE = (
+    rf"(?:\d{{1,2}}[/.\-]\d{{1,2}}[/.\-]\d{{2,4}}"  # 12/03/1980, 12-03-80, 12.03.1980
+    rf"|\d{{1,2}}{_ORDINAL}[ \t]+{_MONTH}[ \t]+\d{{4}}"  # 12th March 1980
+    rf"|{_MONTH}[ \t]+\d{{1,2}}{_ORDINAL},?[ \t]+\d{{4}})"  # March 12, 1980
+)
+_DATE_OF_BIRTH = re.compile(
+    rf"\b(?:date[ \t]+of[ \t]+birth|d\.?o\.?b\.?|born(?:[ \t]+on)?)"
+    rf"(?:[ \t]+(?:is|was))?[ \t]*[:\-]?[ \t]*(?P<value>{_DATE})",
+    re.IGNORECASE,
+)
 _CARD = re.compile(r"(?<![\d\-])(?:\d[ \-]?){12,18}\d(?![\d\-])")
 _SORT_CODE = re.compile(r"(?<![\d\-])\d{2}-\d{2}-\d{2}(?![\d\-])")  # not the "12-03-20" of a date
 _PHONE = re.compile(r"(?<![\w+])(?:\+44[ \-]?(?:\(0\)[ \-]?)?|\(?0)(?:\d\)?[ \-]?){8,9}\d(?!\d)")
@@ -80,6 +103,15 @@ def redact(text: str, *, sender_name: str | None = None) -> RedactedText:
     try:
         placeholders = _Placeholders()
         text = _replace(text, _EMAIL, "EMAIL", placeholders, normalise=str.lower)
+        text = _replace(text, _NI_NUMBER, "NI_NUMBER", placeholders, normalise=_compact_upper)
+        text = _replace(
+            text,
+            _DATE_OF_BIRTH,
+            "DATE_OF_BIRTH",
+            placeholders,
+            normalise=_squashed_lower,
+            group="value",  # keep "Date of birth:" so the model knows what was there
+        )
         text = _replace(text, _CARD, "CARD", placeholders, normalise=_digits, accept=_is_card)
         text = _replace(text, _SORT_CODE, "SORT_CODE", placeholders, normalise=_digits)
         text = _replace(
@@ -101,10 +133,17 @@ def _replace(
     *,
     normalise: Callable[[str], str],
     accept: Callable[[str], bool] = lambda _: True,
+    group: str | int = 0,
 ) -> str:
+    """Replace each match (or just its `group`) with the placeholder for its normalised value."""
+
     def substitute(match: re.Match[str]) -> str:
-        found = match.group(0)
-        return placeholders.for_value(kind, normalise(found)) if accept(found) else found
+        found = match.group(group)
+        if not accept(found):
+            return match.group(0)
+        whole, offset = match.group(0), match.start()
+        before, after = whole[: match.start(group) - offset], whole[match.end(group) - offset :]
+        return before + placeholders.for_value(kind, normalise(found)) + after
 
     return pattern.sub(substitute, text)
 
@@ -178,3 +217,11 @@ def _is_uk_phone(value: str) -> bool:
 
 def _postcode(value: str) -> str:
     return value.replace(" ", "").upper()
+
+
+def _compact_upper(value: str) -> str:
+    return "".join(value.split()).upper()
+
+
+def _squashed_lower(value: str) -> str:
+    return " ".join(value.split()).lower()
