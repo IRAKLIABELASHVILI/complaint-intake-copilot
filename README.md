@@ -2,12 +2,12 @@
 
 AI-assisted intake for regulated complaints: each complaint email becomes a case with UK regulatory deadlines (FCA DISP 1.5 / 1.6), a suggested category, priority and vulnerability flags with evidence. Personal data is redacted before it reaches the model, and a person makes every final decision.
 
-> 🚧 Work in progress. Milestones 1–5 are complete: backend foundation, tenant isolation, deadline engine, queue and worker, and AI analysis with PII redaction. Next: the React front end.
+> 🚧 Work in progress. Milestones 1–6 are complete: backend foundation, tenant isolation, deadline engine, queue and worker, AI analysis with PII redaction, and the handler's web app. Next: the team lead dashboard.
 
 **Stack:** Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 · Alembic · PostgreSQL · Docker Compose · GitHub Actions (ruff, mypy, pytest)
 **Messaging:** RabbitMQ · transactional outbox · idempotent worker with retries and a dead-letter queue
 **AI:** OpenAI-compatible provider (OpenAI or Azure OpenAI) · offline fake provider · PII redaction before every call
-**Planned:** React + TypeScript
+**Front end:** React 19 · TypeScript (strict) · Vite · TanStack Query · API types generated from OpenAPI · Vitest · nginx with a strict CSP
 
 ## Run it
 
@@ -17,11 +17,12 @@ Requires Docker.
 docker compose up --build
 ```
 
-This starts PostgreSQL and RabbitMQ, applies the Alembic migrations, loads fictional demo data, serves the API, and runs the outbox relay and the analysis worker. The seeded complaints are analysed by the offline fake model within seconds, with no API key.
+This starts PostgreSQL and RabbitMQ, applies the Alembic migrations, loads fictional demo data, serves the API and the web app, and runs the outbox relay and the analysis worker. The seeded complaints are analysed by the offline fake model within seconds, with no API key.
 
+- **Web app:** http://localhost:8080 (sign in with a demo token below)
 - **API docs (Swagger UI):** http://localhost:8000/docs
 - **RabbitMQ management UI:** http://localhost:15672 (`cic` / `cic`, local only): queues `case.analysis`, `case.analysis.retry`, `case.analysis.dead`
-- **Demo tokens:** click **Authorize** in Swagger UI and paste one of these.
+- **Demo tokens:** paste one into the web app's sign-in page, or into **Authorize** in Swagger UI.
 
 | Tenant (fictional) | Role | Token |
 |---|---|---|
@@ -31,6 +32,17 @@ This starts PostgreSQL and RabbitMQ, applies the Alembic migrations, loads ficti
 | Harbour Lane Building Society | team lead | `demo-hl-lead` |
 
 Each tenant only ever sees its own cases. Try opening a Northbridge case id with a Harbour Lane token: you get a 404.
+
+### Without Docker
+
+For front-end work, or a machine where Docker cannot run (it needs CPU virtualisation, which some games' anti-cheat software does not allow):
+
+```bash
+cd backend && python -m app.devtools.local_stack      # API on http://127.0.0.1:8000
+cd frontend && npm install && npm run dev             # web app on http://127.0.0.1:5173
+```
+
+The local stack runs the real code on SQLite, and hands analysis jobs straight from the outbox to the worker code instead of going through RabbitMQ. Docker Compose remains the real way to run the system.
 
 ## Develop and test
 
@@ -43,7 +55,9 @@ pytest                         # fast, uses in-memory SQLite
 ruff check . && mypy app tests
 ```
 
-CI runs the same checks, audits every dependency for known vulnerabilities (`pip-audit`), applies and verifies the migrations, and runs the full test suite against **PostgreSQL** and **RabbitMQ** on every push.
+The front end has its own checks (`npm run lint`, `npm run typecheck`, `npm test`, `npm run build`): see [frontend/README.md](frontend/README.md).
+
+CI runs the same checks, audits every dependency for known vulnerabilities (`pip-audit`, `npm audit`), checks the front end's API types still match the backend, applies and verifies the migrations, runs the full test suite against **PostgreSQL** and **RabbitMQ**, and builds and starts the web app's nginx image on every push.
 
 ## Background processing
 

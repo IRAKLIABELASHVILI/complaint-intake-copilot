@@ -75,5 +75,14 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  # The web app: http://localhost:8080. nginx serves it and forwards /api to the api service.
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   pgdata:

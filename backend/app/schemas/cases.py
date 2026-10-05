@@ -47,7 +47,7 @@ class CaseCreate(BaseModel):
     @classmethod
     def received_at_not_in_future(cls, value: datetime | None) -> datetime | None:
         if value is not None and value > datetime.now(UTC) + _MAX_CLOCK_SKEW:
-            raise ValueError("received_at cannot be in the future")
+            raise ValueError("cannot be in the future")  # the field name is reported alongside
         return value
 
 
@@ -176,6 +176,9 @@ class CaseSummary(BaseModel):
     src_deadline_at: datetime | None
     final_response_deadline_at: datetime | None
     deadline_tracking: DeadlineTrackingRead | None = None
+    open_vulnerability_flags: int = Field(
+        default=0, description="Indicators not rejected: pending or confirmed"
+    )
 
 
 class CaseList(BaseModel):

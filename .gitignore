@@ -27,3 +27,6 @@ frontend/dist/
 .vs/
 Thumbs.db
 .DS_Store
+
+# Local run without Docker (app.devtools.local_stack)
+local-demo.db

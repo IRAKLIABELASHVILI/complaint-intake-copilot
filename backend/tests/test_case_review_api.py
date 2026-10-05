@@ -318,3 +318,22 @@ def test_the_audit_trail_is_newest_first_and_cannot_be_changed(
             method, f"/cases/{case['id']}/audit", headers=tenants.handler_a.headers
         )
         assert response.status_code == 405
+
+
+def test_the_case_list_counts_open_vulnerability_flags_per_case(
+    client: TestClient, tenants: TwoTenants, analysed_case: Callable[..., Json]
+) -> None:
+    """A handler sees vulnerable customers in the queue without opening each case."""
+    flagged = analysed_case(tenants.handler_a)
+    analysed_case(tenants.handler_b)  # another tenant's flag must not be counted
+    plain = analysed_case(tenants.handler_a, model_answer())
+
+    def flags() -> dict[str, int]:
+        items = client.get("/cases", headers=tenants.handler_a.headers).json()["items"]
+        return {item["id"]: item["open_vulnerability_flags"] for item in items}
+
+    assert flags() == {flagged["id"]: 1, plain["id"]: 0}
+
+    path = f"/vulnerability-indicators/{indicator_id(client, flagged, tenants.handler_a)}/decision"
+    put(client, flagged, path, {"decision": "rejected"}, tenants.handler_a)
+    assert flags()[flagged["id"]] == 0  # a rejected flag is no longer open

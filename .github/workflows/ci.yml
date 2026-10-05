@@ -67,6 +67,11 @@ jobs:
       - name: Type check (mypy)
         run: mypy app tests
 
+      - name: The front end's copy of the API description is up to date
+        run: |
+          python -m app.export_openapi ../frontend/openapi.json
+          git diff --exit-code ../frontend/openapi.json
+
       - name: Migrations apply and match the models
         run: |
           alembic upgrade head
@@ -81,3 +86,72 @@ jobs:
           TEST_DATABASE_URL: postgresql+psycopg://cic:cic@127.0.0.1:5432/cic
           TEST_RABBITMQ_URL: amqp://cic:cic@127.0.0.1:5672/%2F
         run: pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Dependency audit (npm audit)
+        run: npm audit
+
+      - name: API types match the API description
+        # A backend change that breaks the front end fails here, not in a user's browser.
+        run: |
+          npm run gen:api
+          git diff --exit-code src/api/schema.d.ts
+
+      - name: Lint (oxlint)
+        run: npm run lint
+
+      - name: Type check (tsc)
+        run: npm run typecheck
+
+      - name: Tests (vitest)
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  frontend-image:
+    # The image cannot be tried on every developer machine, so CI builds it and starts it.
+    needs: frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the image
+        run: docker build -t cic-frontend frontend
+
+      - name: nginx starts and serves the app with its security headers
+        run: |
+          # "api" must resolve for nginx to start; nothing needs to answer there for this test.
+          docker run -d --name web --add-host api:127.0.0.1 -p 8080:8080 cic-frontend
+          for i in $(seq 1 20); do curl -fs http://127.0.0.1:8080/ >/dev/null && break; sleep 1; done
+          curl -fsS -D page.headers -o page.html http://127.0.0.1:8080/
+          curl -fsS -D route.headers -o route.html http://127.0.0.1:8080/cases/some-id
+          grep -q '<div id="root">' page.html
+          cmp page.html route.html  # deep links get the app, which then routes in the browser
+          for header in Content-Security-Policy X-Content-Type-Options X-Frame-Options Referrer-Policy; do
+            grep -qi "^$header:" page.headers || { echo "missing $header"; exit 1; }
+          done
+          asset=$(grep -oE '/assets/[^"]+\.js' page.html | head -1)
+          curl -fsS -D asset.headers -o /dev/null "http://127.0.0.1:8080$asset"
+          grep -qi '^Content-Security-Policy:' asset.headers
+          grep -qi '^Cache-Control: public, max-age=31536000, immutable' asset.headers
+          test "$(docker exec web id -u)" != "0"  # nginx does not run as root
+          echo "frontend image OK"

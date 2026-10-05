@@ -92,6 +92,8 @@ sequenceDiagram
 | **`LLMProvider` interface + fake provider** | Tests are deterministic, and anyone can run the demo without a key. OpenAI and Azure OpenAI share one implementation. | `ILlmClient` + a test double |
 | **Redaction before the provider call** | The provider interface only accepts a `RedactedText` type that only the redactor creates, so unredacted text cannot reach a model without a type error. | A decorator around the client |
 | **Tenant id from the auth dependency only** | One place to get right, one place to test. | Global query filter in EF Core (`HasQueryFilter`) + claims |
+| **One origin: nginx serves the app and forwards /api** | No CORS configuration exists, so none can be wrong; a strict Content-Security-Policy is possible. | YARP / reverse proxy in front of an SPA |
+| **API types generated from OpenAPI** | A backend change that breaks the front end fails to compile, in CI, not in a browser. | NSwag-generated client |
 | **Deadlines as pure functions** | Rules like these are where bugs hide, and pure functions are easy to test at the boundaries. | Static domain service with injected `TimeProvider` |
 | **Bank holidays from a JSON file** | No runtime dependency on gov.uk; reproducible tests. | Embedded resource |
 
@@ -122,7 +124,7 @@ complaint-intake-copilot/
 │   ├── migrations/         # Alembic
 │   ├── tests/
 │   └── pyproject.toml
-├── frontend/               # milestone 6
+├── frontend/               # React + TypeScript (Vite), served by nginx; see frontend/README.md
 ├── docs/
 ├── docker-compose.yml
 └── .github/workflows/ci.yml

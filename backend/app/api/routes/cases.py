@@ -80,8 +80,12 @@ def list_cases(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> CaseList:
     cases, total = service.cases.list(status=status_filter, limit=limit, offset=offset)
+    flags = service.indicators.open_counts([case.id for case in cases])
+    items = [_to_response(CaseSummary, case, service, now) for case in cases]
+    for item in items:
+        item.open_vulnerability_flags = flags.get(item.id, 0)
     return CaseList(
-        items=[_to_response(CaseSummary, case, service, now) for case in cases],
+        items=items,
         total=total,
         limit=limit,
         offset=offset,

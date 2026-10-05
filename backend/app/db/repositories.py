@@ -9,6 +9,7 @@ C# comparison: this plays the role of an EF Core global query filter
 
 import uuid
 from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
@@ -22,7 +23,7 @@ from app.db.models import (
     User,
     VulnerabilityIndicator,
 )
-from app.domain.enums import AnalysisStatus, CaseStatus
+from app.domain.enums import AnalysisStatus, CaseStatus, IndicatorDecision
 
 
 class CrossTenantWriteError(Exception):
@@ -36,8 +37,9 @@ class TenantScopedRepository[ModelT: TenantScopedMixin]:
         self.session = session
         self.tenant_id = tenant_id
 
-    def _scoped(self, statement: Select[ModelT]) -> Select[ModelT]:
-        """Restrict a SELECT to rows of the current tenant.
+    def _scoped[StatementT: Select[*tuple[Any, ...]]](self, statement: StatementT) -> StatementT:
+        """Restrict a SELECT to rows of the current tenant. Works for any SELECT on this model:
+        whole rows, or aggregates such as counts.
 
         `where` returns a new statement (statements are immutable, like LINQ queries).
         """
@@ -147,6 +149,22 @@ class IndicatorRepository(TenantScopedRepository[VulnerabilityIndicator]):
             VulnerabilityIndicator.id == indicator_id, VulnerabilityIndicator.case_id == case_id
         )
         return self.session.scalars(self._scoped(statement)).first()
+
+    def open_counts(self, case_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, int]:
+        """Indicators not rejected (pending or confirmed), per case. One query for a whole page
+        of cases instead of one per case."""
+        if not case_ids:
+            return {}
+        statement = (
+            select(VulnerabilityIndicator.case_id, func.count())
+            .where(
+                VulnerabilityIndicator.case_id.in_(case_ids),
+                VulnerabilityIndicator.decision != IndicatorDecision.REJECTED,
+            )
+            .group_by(VulnerabilityIndicator.case_id)
+        )
+        rows = self.session.execute(self._scoped(statement)).all()
+        return dict(rows)
 
     def list_for_case(self, case_id: uuid.UUID) -> Sequence[VulnerabilityIndicator]:
         statement = (
