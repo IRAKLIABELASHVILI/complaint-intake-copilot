@@ -5,7 +5,9 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 
+from app.db.models import AuditEvent, Case
 from app.worker.case_analyser import INVALID_TWICE
 from tests.conftest import SeededUser, TwoTenants
 from tests.fakes import model_answer
@@ -305,6 +307,42 @@ def test_the_audit_trail_is_newest_first_and_cannot_be_changed(
             method, f"/cases/{case['id']}/audit", headers=tenants.handler_a.headers
         )
         assert response.status_code == 405
+
+
+class SimulatedDatabaseFailure(Exception):
+    pass
+
+
+@pytest.mark.parametrize(
+    ("failing_model", "failing_write"),
+    [(AuditEvent, "before_insert"), (Case, "before_update")],
+    ids=["audit-write-fails", "case-write-fails"],
+)
+def test_a_change_and_its_audit_event_are_saved_together_or_not_at_all(
+    client: TestClient,
+    tenants: TwoTenants,
+    analysed_case: Callable[..., Json],
+    failing_model: type,
+    failing_write: str,
+) -> None:
+    """US-3.6: one transaction. If either write fails, neither the decision nor its audit
+    event is saved, and the case stays as it was."""
+    case = analysed_case(tenants.handler_a)
+    events_before = audit(client, case, tenants.handler_a)
+
+    def fail(*_args: object) -> None:
+        raise SimulatedDatabaseFailure()
+
+    event.listen(failing_model, failing_write, fail)
+    try:
+        with pytest.raises(SimulatedDatabaseFailure):
+            put(client, case, "/category", {"category": "other"}, tenants.handler_a)
+    finally:
+        event.remove(failing_model, failing_write, fail)
+
+    unchanged = get(client, case, tenants.handler_a)
+    assert (unchanged["final_category"], unchanged["status"]) == (None, "awaiting_review")
+    assert audit(client, case, tenants.handler_a) == events_before
 
 
 def test_the_case_list_counts_open_vulnerability_flags_per_case(

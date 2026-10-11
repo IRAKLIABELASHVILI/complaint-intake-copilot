@@ -61,11 +61,13 @@ jobs:
 
       - name: Lint (ruff)
         run: |
-          ruff check .
-          ruff format --check .
+          ruff check . ../scripts
+          ruff format --check . ../scripts
 
       - name: Type check (mypy)
-        run: mypy app tests
+        run: |
+          mypy app tests
+          mypy --strict ../scripts
 
       - name: The front end's copy of the API description is up to date
         run: |
@@ -155,3 +157,35 @@ jobs:
           grep -qi '^Cache-Control: public, max-age=31536000, immutable' asset.headers
           test "$(docker exec web id -u)" != "0"  # nginx does not run as root
           echo "frontend image OK"
+
+  compose-stack:
+    # The promise in docs/brief.md: `docker compose up` starts everything, and the seeded
+    # complaints are analysed with no API key. Proven end to end, through nginx, on every push.
+    needs: [backend, frontend-image]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Start the stack
+        run: docker compose up --build --detach --wait --wait-timeout 300
+
+      - name: Smoke test (scripts/smoke_test.py)
+        run: python scripts/smoke_test.py
+
+      - name: Every service is still running
+        run: |
+          docker compose ps --all --format '{{.Service}} {{.State}}'
+          test -z "$(docker compose ps --all --format '{{.Service}} {{.State}}' | grep -v ' running$')"
+
+      - name: Logs
+        if: always()
+        run: docker compose logs --no-color --timestamps
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes

@@ -3,16 +3,21 @@
 Each test is a promise in docs/user-stories.md (US-7); together they are the evidence.
 """
 
+import ast
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Case
+from app.db.base import Base
+from app.db.models import Case, Tenant
 from app.db.repositories import CaseRepository, CrossTenantWriteError
+from app.seed import seed
 from tests.conftest import TwoTenants, complaint_payload
 from tests.fakes import model_answer
 
@@ -213,3 +218,70 @@ def test_same_external_message_id_in_two_tenants_creates_two_cases(
     assert response_a.status_code == 201
     assert response_b.status_code == 201
     assert response_a.json()["id"] != response_b.json()["id"]
+
+
+# --- The schema and the code base (US-7.1, US-7.3) ---------------------------------------------
+
+# Tables that are not owned by a tenant, and why. A new table must be added here or get tenant_id.
+NOT_TENANT_OWNED = {
+    "tenants": "the tenants themselves",
+    "outbox_messages": "infrastructure; the tenant id travels inside the payload",
+    "processed_messages": "infrastructure; only message ids the worker has handled",
+}
+
+
+def test_every_tenant_owned_table_has_an_indexed_non_null_tenant_id() -> None:
+    """US-7.1. Read from the models, which `alembic check` in CI proves match the migrations."""
+    for table in Base.metadata.sorted_tables:
+        if table.name in NOT_TENANT_OWNED:
+            assert "tenant_id" not in table.columns, table.name
+            continue
+        assert "tenant_id" in table.columns, f"{table.name} has no tenant_id"
+        assert not table.columns["tenant_id"].nullable, table.name
+        leading_columns = [next(iter(index.columns)).name for index in table.indexes]
+        assert "tenant_id" in leading_columns, f"{table.name}.tenant_id has no index"
+
+
+APP_DIR = Path(__file__).resolve().parent.parent / "app"
+TENANT_FILTER_HOME = APP_DIR / "db" / "repositories.py"
+
+
+def _filters_on_tenant_id(node: ast.expr) -> bool:
+    """`X.tenant_id == ...` / `... == X.tenant_id`, or `.filter_by(tenant_id=...)`."""
+    if isinstance(node, ast.Compare):
+        sides = [node.left, *node.comparators]
+        return any(isinstance(side, ast.Attribute) and side.attr == "tenant_id" for side in sides)
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        return node.func.attr == "filter_by" and any(
+            keyword.arg == "tenant_id" for keyword in node.keywords
+        )
+    return False
+
+
+def test_tenant_filtering_happens_only_in_the_repositories() -> None:
+    """US-7.3: endpoints, services and the worker never write their own tenant filter. They get
+    a repository built for the user's tenant, and the repository adds the filter."""
+    offenders = [
+        f"{path.relative_to(APP_DIR)}:{node.lineno}"
+        for path in APP_DIR.rglob("*.py")
+        if path != TENANT_FILTER_HOME
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.expr) and _filters_on_tenant_id(node)
+    ]
+
+    assert offenders == []
+
+
+# --- Demo data (US-7.7) ------------------------------------------------------------------------
+
+
+def test_the_demo_data_has_two_tenants_with_cases_and_can_be_loaded_twice(db: Session) -> None:
+    seed(db)
+    seed(db)  # safe to run again: an existing tenant is skipped
+
+    cases_per_tenant = dict(
+        db.execute(select(Case.tenant_id, func.count()).group_by(Case.tenant_id)).all()
+    )
+    assert db.scalar(select(func.count()).select_from(Tenant)) == 2
+    assert len(cases_per_tenant) == 2
+    assert all(count > 0 for count in cases_per_tenant.values())

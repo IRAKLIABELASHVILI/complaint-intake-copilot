@@ -219,3 +219,31 @@ describe('M7 BUG-2: the way back from a case keeps the list it came from', () =>
     expect(await screen.findByRole('link', { name: '← All cases' })).toHaveAttribute('href', '/cases')
   })
 })
+
+describe('M8 BUG-1: the audit trail says who acted, and how a decision relates to the AI', () => {
+  it('never mixes "System" with a person', async () => {
+    saveToken(TOKEN)
+    renderApp(
+      '/cases/case-a',
+      backend({
+        audit: [
+          auditEvent({ field: 'category', source: 'override' }),
+          auditEvent({ field: 'priority', source: 'accepted_suggestion' }),
+          // The worker starting an analysis, and a case a colleague created: both "system".
+          auditEvent({ field: 'status', source: 'system', actor_user_id: null }),
+          auditEvent({ field: null, source: 'system', actor_user_id: 'colleague-1' }),
+        ],
+      }).fetch,
+    )
+
+    const audit = await screen.findByRole('region', { name: 'Audit trail' })
+    const items = await within(audit).findAllByRole('listitem')
+    const who = items.map((item) => item.querySelector('.muted')?.textContent)
+    expect(who).toEqual([
+      'You · Overrode AI suggestion',
+      'You · Accepted AI suggestion',
+      'System',
+      'A colleague',
+    ])
+  })
+})

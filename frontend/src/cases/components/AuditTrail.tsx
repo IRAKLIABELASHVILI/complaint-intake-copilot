@@ -30,19 +30,23 @@ export function AuditTrail({ caseId }: { caseId: string }) {
               <strong>{humanise(event.action)}</strong>
               {event.field && <> · {describeChange(event)}</>}
             </span>
-            <span className="muted small">
-              {AUDIT_SOURCE_LABELS[event.source]}
-              {event.actor_user_id === null
-                ? ' (system)'
-                : event.actor_user_id === me.id
-                  ? ' (you)'
-                  : ' (a colleague)'}
-            </span>
+            <span className="muted small">{describeActor(event, me.id)}</span>
           </li>
         ))}
       </ol>
     </Panel>
   )
+}
+
+/**
+ * Who acted, then how the decision relates to the AI when it does (accepted or overrode it).
+ * `source` is not a person: a case a colleague created has source "system".
+ */
+function describeActor(event: AuditEvent, myId: string): string {
+  if (event.actor_user_id === null) return 'System'
+  const who = event.actor_user_id === myId ? 'You' : 'A colleague'
+  const relatesToAi = event.source === 'accepted_suggestion' || event.source === 'override'
+  return relatesToAi ? `${who} · ${AUDIT_SOURCE_LABELS[event.source]}` : who
 }
 
 /** How each audited field and its values read to a person, rather than as the API's codes. */

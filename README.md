@@ -2,7 +2,21 @@
 
 AI-assisted intake for regulated complaints: each complaint email becomes a case with UK regulatory deadlines (FCA DISP 1.5 / 1.6), a suggested category, priority and vulnerability flags with evidence. Personal data is redacted before it reaches the model, and a person makes every final decision.
 
-> 🚧 Work in progress. Milestones 1–7 are complete: backend foundation, tenant isolation, deadline engine, queue and worker, AI analysis with PII redaction, the handler's web app, and the team lead dashboard.
+![A case: the complaint, its two regulatory deadlines, the AI's suggestions with word-for-word evidence, the handler's decisions, and the audit trail](docs/screenshots/case-detail.png)
+
+## In one minute
+
+A complaint email arrives. It becomes a case at once, with its two FCA deadlines. In the background, the complaint is stripped of personal data and sent to a language model, whose answer is checked like any untrusted input. A complaint handler then accepts or overrides each suggestion, and every change is audited. A team lead sees what is close to breach.
+
+What the project demonstrates:
+
+- **Regulatory rules as tested code, not prompts.** DISP 1.5 / 1.6 deadlines with UK bank holidays per region, as pure functions; the model is never asked when a deadline is.
+- **AI treated as untrusted input.** Personal data is redacted before every call (enforced by the type system), the answer must match a strict schema, evidence must be quoted word for word, and a person makes every decision.
+- **Reliable background work.** A transactional outbox, an idempotent worker, retries with backoff and a dead-letter queue on RabbitMQ.
+- **Multi-tenancy that is proven.** One test per endpoint, plus a test that no code outside the repositories filters by tenant.
+- **Every acceptance criterion traced to a test** ([traceability](docs/traceability.md)). CI starts the whole Docker Compose stack and smoke-tests it through the web server on every push.
+
+**Status:** complete. All eight milestones are done: backend foundation, tenant isolation, deadline engine, queue and worker, AI analysis with PII redaction, the handler's web app, the team lead dashboard, and the final hardening (traceability, end-to-end stack test).
 
 **Stack:** Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 · Alembic · PostgreSQL · Docker Compose · GitHub Actions (ruff, mypy, pytest)
 **Messaging:** RabbitMQ · transactional outbox · idempotent worker with retries and a dead-letter queue
@@ -33,6 +47,14 @@ This starts PostgreSQL and RabbitMQ, applies the Alembic migrations, loads ficti
 
 Each tenant only ever sees its own cases. Try opening a Northbridge case id with a Harbour Lane token: you get a 404.
 
+To check a running stack end to end (seeded cases analysed, tenant isolation, the dashboard, and a new complaint all the way to an audited decision):
+
+```bash
+python scripts/smoke_test.py
+```
+
+CI runs the same script against a fresh `docker compose up` on every push.
+
 ### Without Docker
 
 For front-end work, or a machine where Docker cannot run (it needs CPU virtualisation, which some games' anti-cheat software does not allow):
@@ -57,7 +79,9 @@ ruff check . && mypy app tests
 
 The front end has its own checks (`npm run lint`, `npm run typecheck`, `npm test`, `npm run build`): see [frontend/README.md](frontend/README.md).
 
-CI runs the same checks, audits every dependency for known vulnerabilities (`pip-audit`, `npm audit`), checks the front end's API types still match the backend, applies and verifies the migrations, runs the full test suite against **PostgreSQL** and **RabbitMQ**, and builds and starts the web app's nginx image on every push.
+CI runs the same checks, audits every dependency for known vulnerabilities (`pip-audit`, `npm audit`), checks the front end's API types still match the backend, applies and verifies the migrations, runs the full test suite against **PostgreSQL** and **RabbitMQ**, builds and starts the web app's nginx image, and finally starts the whole Compose stack and runs the smoke test against it, on every push.
+
+[docs/traceability.md](docs/traceability.md) lists, for every acceptance criterion, the tests that prove it.
 
 ## Background processing
 
@@ -126,6 +150,8 @@ Sign in as a team lead (`demo-nb-lead`) and open **Dashboard**. For the open cas
 - **Categories:** decided by a person, and suggested by the AI but not decided yet, in separate columns, so a suggestion is never read as a decision.
 - **Vulnerability:** cases with a confirmed indicator, per type and FCA driver.
 
+![The team lead dashboard: deadlines at risk and overdue, categories decided and suggested, confirmed vulnerability](docs/screenshots/dashboard.png)
+
 Every number is a link to the case list with the matching filters (`GET /cases?open=true&deadline=src&deadline_risk=overdue`, and so on). The dashboard and the list are built from the same query conditions, and a test checks every number against the list it opens. A handler calling `GET /dashboard` gets `403`.
 
 ## Documentation
@@ -133,6 +159,7 @@ Every number is a link to the case list with the matching filters (`GET /cases?o
 - [Company notes](docs/company-notes.md): context and the regulatory rules used
 - [Brief](docs/brief.md): the problem, users, scope
 - [User stories](docs/user-stories.md): acceptance criteria
+- [Traceability](docs/traceability.md): each acceptance criterion and the tests that prove it
 - [Data model](docs/data-model.md)
 - [Architecture](docs/architecture.md)
 

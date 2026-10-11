@@ -1,6 +1,6 @@
 # User stories and acceptance criteria
 
-The acceptance criteria use Given / When / Then. Each criterion maps to at least one automated test. The milestone tells you where it gets built.
+The acceptance criteria use Given / When / Then. Each criterion maps to at least one automated test: [traceability.md](traceability.md) lists them. The milestone tells you where it gets built.
 
 **Roles:** `handler` (complaint handler), `team_lead`.
 Every user belongs to exactly one tenant (client firm).

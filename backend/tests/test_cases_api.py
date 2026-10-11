@@ -5,6 +5,7 @@ from collections.abc import Callable
 
 from fastapi.testclient import TestClient
 
+from app.main import app
 from tests.conftest import TwoTenants, complaint_payload
 
 
@@ -145,3 +146,38 @@ def test_correlation_id_is_echoed_or_generated(client: TestClient, tenants: TwoT
     generated = client.get("/health/live", headers={"X-Correlation-ID": "bad value!\n"})
     assert generated.headers["X-Correlation-ID"] != "bad value!\n"
     assert len(generated.headers["X-Correlation-ID"]) == 32
+
+
+def test_received_at_cannot_be_changed_after_intake(
+    client: TestClient, tenants: TwoTenants, create_case: Callable[..., dict[str, object]]
+) -> None:
+    """US-1.4: the deadlines depend on it. Only intake accepts it; every other request body
+    forbids unknown fields, so trying to send it is a 422, not a silent no-op."""
+    case = create_case(tenants.handler_a)
+
+    response = client.patch(
+        f"/cases/{case['id']}/assignment",
+        json={"assigned_to_user_id": None, "received_at": "2026-09-20T09:00:00+00:00"},
+        headers=tenants.handler_a.headers,
+    )
+
+    assert response.status_code == 422
+    after = client.get(f"/cases/{case['id']}", headers=tenants.handler_a.headers).json()
+    assert after["received_at"] == case["received_at"]
+    assert _request_bodies_accepting("received_at") == ["POST /cases"]
+
+
+def _request_bodies_accepting(field: str) -> list[str]:
+    spec = app.openapi()
+    schemas = spec["components"]["schemas"]
+    found = []
+    for path, operations in spec["paths"].items():
+        for method, operation in operations.items():
+            body = operation.get("requestBody", {}).get("content", {}).get("application/json")
+            if body is None:
+                continue
+            schema = schemas[body["schema"]["$ref"].rsplit("/", 1)[-1]]
+            assert schema.get("additionalProperties") is False, f"{method} {path}"
+            if field in schema["properties"]:
+                found.append(f"{method.upper()} {path}")
+    return found

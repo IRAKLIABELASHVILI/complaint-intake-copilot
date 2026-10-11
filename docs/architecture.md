@@ -107,25 +107,29 @@ sequenceDiagram
 - **Shared-schema multi-tenancy** (a `tenant_id` column) is the simplest model to start with. PostgreSQL row-level security would add defence in depth and is a stretch goal.
 - **Simple token auth** with seeded users. Production would use Entra ID / OIDC.
 
-## Repository layout (planned)
+## Repository layout
 
 ```
 complaint-intake-copilot/
 ├── backend/
 │   ├── app/
 │   │   ├── api/            # routers, dependencies (auth, tenant)
+│   │   ├── services/       # use cases: intake, decisions, dashboard; one transaction each
 │   │   ├── domain/         # deadlines, redaction, status rules, pure logic
 │   │   ├── reference_data/ # bank holiday file (from gov.uk) and its loader
-│   │   ├── db/             # SQLAlchemy models, session, repositories
+│   │   ├── db/             # SQLAlchemy models, session, repositories (the only tenant filter)
 │   │   ├── messaging/      # job contract, outbox + relay, MessageBus, RabbitMQ adapter
-│   │   ├── ai/             # LLMProvider, fake + OpenAI providers, schemas
+│   │   ├── ai/             # LLMProvider, fake + OpenAI providers, output validation
 │   │   ├── worker/         # consumer (ack / retry / dead-letter), job handler, entry point
-│   │   └── schemas/        # Pydantic request and response models
+│   │   ├── schemas/        # Pydantic request and response models
+│   │   └── devtools/       # local_stack: the real code on SQLite, without Docker
 │   ├── migrations/         # Alembic
+│   ├── seed/               # fictional demo complaints
 │   ├── tests/
 │   └── pyproject.toml
 ├── frontend/               # React + TypeScript (Vite), served by nginx; see frontend/README.md
-├── docs/
+├── scripts/smoke_test.py   # end-to-end check of a running stack (CI runs it after compose up)
+├── docs/                   # brief, user stories, traceability, data model, this file
 ├── docker-compose.yml
 └── .github/workflows/ci.yml
 ```
