@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from sqlalchemy import text
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import SessionDep, SignedInUser
 from app.schemas.users import UserRead
 
 router = APIRouter(tags=["system"])
@@ -21,5 +21,5 @@ def ready(session: SessionDep) -> dict[str, str]:
 
 
 @router.get("/me", response_model=UserRead)
-def me(user: CurrentUser) -> UserRead:
+def me(user: SignedInUser) -> UserRead:
     return UserRead.model_validate(user)

@@ -387,6 +387,17 @@ form {
   white-space: nowrap;
 }
 
+.who-text a {
+  color: var(--sidebar-text);
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+
+.who-text a:hover {
+  color: var(--sidebar-active);
+  text-decoration: underline;
+}
+
 .who .link-button {
   margin-left: auto;
   color: var(--sidebar-text);
@@ -592,6 +603,17 @@ form {
   background: var(--danger-soft);
   color: var(--danger);
   font-size: 0.85rem;
+}
+
+/* A problem with one field, under it. */
+.field-error {
+  color: var(--danger);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+input[aria-invalid='true'] {
+  border-color: var(--danger);
 }
 
 .table-scroll {
@@ -1599,6 +1621,22 @@ table.cases tbody tr:hover {
   align-items: start;
 }
 
+.reset-password {
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.reset-password-input {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.reset-password-input input {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
 .accounts-grid td .badge {
   margin-left: var(--space-2);
 }
@@ -1683,6 +1721,12 @@ table.cases tbody tr:hover {
 
 .sign-in-form form {
   margin-top: var(--space-5);
+}
+
+.sign-in-secondary {
+  margin: var(--space-4) 0 0;
+  text-align: center;
+  font-size: 0.85rem;
 }
 
 .sign-in-form button[type='submit'] {
@@ -1849,7 +1893,8 @@ table.cases tbody tr:hover {
 /* 11. Small screens ---------------------------------------------------------------------------- */
 @media (max-width: 1180px) {
   .detail-grid,
-  .new-case-grid {
+  .new-case-grid,
+  .accounts-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -1900,8 +1945,8 @@ table.cases tbody tr:hover {
     background: none;
   }
 
-  .who-text {
-    display: none;
+  .who-text > span {
+    display: none; /* the avatar says who; the password link stays */
   }
 
   .topbar {

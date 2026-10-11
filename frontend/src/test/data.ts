@@ -9,6 +9,7 @@ export const HANDLER: User = {
   display_name: 'Nina Handler',
   role: 'handler',
   is_admin: false,
+  must_change_password: false,
 }
 
 export const INDICATOR: Indicator = {
@@ -93,6 +94,7 @@ export const TEAM_LEAD: User = {
   display_name: 'Leo Lead',
   role: 'team_lead',
   is_admin: false,
+  must_change_password: false,
 }
 
 export function dashboard(overrides: Partial<Dashboard> = {}): Dashboard {

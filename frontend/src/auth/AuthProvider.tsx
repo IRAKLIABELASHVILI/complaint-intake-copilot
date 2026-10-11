@@ -7,12 +7,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { useApi } from '../api/apiContext'
+import { queryKeys } from '../api/hooks'
 import { ApiError, unwrap, type ApiClient } from '../api/client'
 import type { User } from '../api/types'
 import { AuthContext, SESSION_EXPIRED_EVENT, type AuthState } from './authContext'
 import { clearToken, readToken, saveToken } from './session'
 
-const meKey = (token: string | null) => ['me', token] as const
+const meKey = (token: string | null) => [...queryKeys.me, token] as const
 
 async function fetchMe(api: ApiClient): Promise<User> {
   try {

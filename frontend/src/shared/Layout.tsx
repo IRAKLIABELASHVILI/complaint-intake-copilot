@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link, NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet, useLocation } from 'react-router'
 
 import { useAuth, useCurrentUser } from '../auth/authContext'
 import { initials } from './format'
@@ -10,6 +10,9 @@ import { Notifications } from './Notifications'
 export function Layout() {
   const user = useCurrentUser()
   const { signOut } = useAuth()
+  // Set by the password page, so the user sees that the change went through.
+  const passwordChanged = (useLocation().state as { passwordChanged?: boolean } | null)
+    ?.passwordChanged
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -50,6 +53,7 @@ export function Layout() {
             <span>
               {user.display_name} · {user.role === 'team_lead' ? 'Team lead' : 'Handler'}
             </span>
+            <Link to="/change-password">Change password</Link>
           </span>
           <button type="button" className="link-button" onClick={signOut}>
             Sign out
@@ -61,6 +65,11 @@ export function Layout() {
           <Notifications />
         </header>
         <main className="page">
+          {passwordChanged && (
+            <p className="notice" role="status">
+              Your password was changed. Other devices were signed out.
+            </p>
+          )}
           <Outlet />
         </main>
         <footer className="app-footer">

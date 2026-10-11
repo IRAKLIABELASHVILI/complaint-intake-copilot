@@ -1,7 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router'
 
 import { AccountsPage } from './auth/AccountsPage'
-import { RequireAuth } from './auth/RequireAuth'
+import { ChangePasswordPage } from './auth/ChangePasswordPage'
+import { CHANGE_PASSWORD_PATH, RequireAuth } from './auth/RequireAuth'
 import { SignInPage } from './auth/SignInPage'
 import { CaseDetailPage } from './cases/CaseDetailPage'
 import { CaseListPage } from './cases/CaseListPage'
@@ -13,6 +14,14 @@ export function App() {
   return (
     <Routes>
       <Route path="/sign-in" element={<SignInPage />} />
+      <Route
+        path={CHANGE_PASSWORD_PATH}
+        element={
+          <RequireAuth>
+            <ChangePasswordPage />
+          </RequireAuth>
+        }
+      />
       <Route
         element={
           <RequireAuth>

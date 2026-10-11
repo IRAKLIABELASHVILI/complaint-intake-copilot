@@ -50,6 +50,8 @@ class User(TenantScopedMixin, TimestampMixin, Base):
     is_admin: Mapped[bool] = mapped_column(default=False, server_default="false")
     failed_logins: Mapped[int] = mapped_column(default=0, server_default="0")
     locked_until: Mapped[datetime | None]
+    # A temporary password from an administrator: the user must choose their own before working.
+    must_change_password: Mapped[bool] = mapped_column(default=False, server_default="false")
     # SHA-256 of the user's API token. The token itself is never stored.
     api_token_hash: Mapped[str] = mapped_column(String(64), unique=True)
 

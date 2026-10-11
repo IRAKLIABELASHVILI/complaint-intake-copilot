@@ -21,6 +21,7 @@
             "type": "boolean"
           },
           "password": {
+            "description": "Temporary: replaced by the user at first sign-in",
             "maxLength": 256,
             "minLength": 12,
             "title": "Password",
@@ -1360,6 +1361,45 @@
         "title": "NoteCreate",
         "type": "object"
       },
+      "PasswordChange": {
+        "additionalProperties": false,
+        "properties": {
+          "current_password": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Current Password",
+            "type": "string"
+          },
+          "new_password": {
+            "maxLength": 256,
+            "minLength": 12,
+            "title": "New Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "PasswordChange",
+        "type": "object"
+      },
+      "PasswordReset": {
+        "additionalProperties": false,
+        "properties": {
+          "temporary_password": {
+            "maxLength": 256,
+            "minLength": 12,
+            "title": "Temporary Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "temporary_password"
+        ],
+        "title": "PasswordReset",
+        "type": "object"
+      },
       "Priority": {
         "enum": [
           "low",
@@ -1468,6 +1508,11 @@
           "is_admin": {
             "default": false,
             "title": "Is Admin",
+            "type": "boolean"
+          },
+          "must_change_password": {
+            "default": false,
+            "title": "Must Change Password",
             "type": "boolean"
           },
           "role": {
@@ -1686,6 +1731,49 @@
           }
         ],
         "summary": "Sign Out",
+        "tags": [
+          "accounts"
+        ]
+      }
+    },
+    "/auth/password": {
+      "post": {
+        "description": "Choose a new password. Required after an administrator set a temporary one; this\nsession stays signed in, every other one is signed out.",
+        "operationId": "change_own_password_auth_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "The current password is not correct"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Change Own Password",
         "tags": [
           "accounts"
         ]
@@ -3084,6 +3172,58 @@
           }
         ],
         "summary": "Create User",
+        "tags": [
+          "accounts"
+        ]
+      }
+    },
+    "/users/{user_id}/password": {
+      "post": {
+        "description": "An administrator gives a colleague a temporary password (for example, a forgotten one).\nThe colleague is signed out everywhere and chooses their own at the next sign-in.",
+        "operationId": "reset_password_users__user_id__password_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordReset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reset Password",
         "tags": [
           "accounts"
         ]

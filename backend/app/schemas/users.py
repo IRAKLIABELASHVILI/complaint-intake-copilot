@@ -14,3 +14,4 @@ class UserRead(BaseModel):
     display_name: str
     role: UserRole
     is_admin: bool = False
+    must_change_password: bool = False

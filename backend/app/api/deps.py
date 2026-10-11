@@ -43,7 +43,7 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def get_current_user(
+def get_signed_in_user(
     session: SessionDep,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
 ) -> User:
@@ -60,6 +60,21 @@ def get_current_user(
         user = session.scalars(select(User).where(User.api_token_hash == token_hash)).first()
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+    return user
+
+
+# Only for who-am-I, sign-out and choosing a new password: the endpoints a user with a
+# temporary password can reach.
+SignedInUser = Annotated[User, Depends(get_signed_in_user)]
+
+PASSWORD_CHANGE_REQUIRED = "Choose a new password before continuing."
+
+
+def get_current_user(user: SignedInUser) -> User:
+    """The user every other endpoint works for. A temporary password opens nothing else: the
+    rule holds on the server, whatever a client does."""
+    if user.must_change_password:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, PASSWORD_CHANGE_REQUIRED)
     return user
 
 

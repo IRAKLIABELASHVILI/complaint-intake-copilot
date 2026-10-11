@@ -39,7 +39,15 @@ def main() -> None:
         )
         if len(password) < 12:
             raise SystemExit("Password must contain at least 12 characters.")
-        account = new_account(args.email, args.name, password, UserRole.TEAM_LEAD, admin=True)
+        # A generated password was shown on screen: treat it as temporary, like an admin's reset.
+        account = new_account(
+            args.email,
+            args.name,
+            password,
+            UserRole.TEAM_LEAD,
+            admin=True,
+            temporary=args.generate_password,
+        )
         UserRepository(session, tenant.id).add(account)
         session.commit()
         print(f"Created {args.email}")

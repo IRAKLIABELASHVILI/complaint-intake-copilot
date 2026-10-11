@@ -21,6 +21,8 @@ import type {
 export const PAGE_SIZE = 25
 
 export const queryKeys = {
+  /** Who is signed in, per token: ['me', token]. */
+  me: ['me'] as const,
   cases: (filters: CaseFilters, offset: number) => ['cases', filters, offset] as const,
   allCases: ['cases'] as const,
   case: (id: string) => ['case', id] as const,
@@ -199,6 +201,34 @@ export function useUsers(enabled = true) {
     queryFn: async () => unwrap(await api.GET('/users')),
     enabled,
     staleTime: 60_000, // accounts change rarely
+  })
+}
+
+/** Choose a new password (required after a temporary one). Other sessions are signed out. */
+export function useChangePassword() {
+  const api = useApi()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { current_password: string; new_password: string }) =>
+      succeed(await api.POST('/auth/password', { body })),
+    // `must_change_password` is now false: read who is signed in again.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.me }),
+  })
+}
+
+/** An administrator gives a colleague a temporary password; they choose their own next time. */
+export function useResetPassword() {
+  const api = useApi()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) =>
+      succeed(
+        await api.POST('/users/{user_id}/password', {
+          params: { path: { user_id: userId } },
+          body: { temporary_password: password },
+        }),
+      ),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.users }),
   })
 }
 

@@ -13,7 +13,19 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from typing import Any
 
-from sqlalchemy import ColumnElement, Row, Select, Subquery, and_, case, func, not_, or_, select
+from sqlalchemy import (
+    ColumnElement,
+    Row,
+    Select,
+    Subquery,
+    and_,
+    case,
+    delete,
+    func,
+    not_,
+    or_,
+    select,
+)
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app.db.base import TenantScopedMixin
@@ -482,6 +494,13 @@ class AccountRepository:
         )
         if login:
             self.session.delete(login)
+
+    def revoke_all(self, user_id: uuid.UUID, *, except_token_hash: str | None = None) -> None:
+        """Sign the user out everywhere (or everywhere but this one session)."""
+        statement = delete(LoginSession).where(LoginSession.user_id == user_id)
+        if except_token_hash is not None:
+            statement = statement.where(LoginSession.token_hash != except_token_hash)
+        self.session.execute(statement)
 
 
 class SavedViewRepository(TenantScopedRepository[SavedView]):

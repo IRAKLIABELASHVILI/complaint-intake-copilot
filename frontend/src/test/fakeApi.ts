@@ -54,6 +54,8 @@ export function fakeApi(routes: Record<string, Handler>) {
       const result = route.handler(request, params, body)
       const status = result instanceof HttpStatus ? result.status : 200
       const payload = result instanceof HttpStatus ? result.body : result
+      // "204 No Content" must have no body: a Response with one would throw.
+      if (status === 204) return new Response(null, { status })
       return new Response(JSON.stringify(payload), {
         status,
         headers: { 'Content-Type': 'application/json' },
