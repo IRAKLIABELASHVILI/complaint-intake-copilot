@@ -38,7 +38,7 @@ export function DashboardPage() {
   return (
     <>
       <div className="page-title">
-        <h1>Dashboard</h1>
+        <div><p className="eyebrow">Team overview</p><h1>Dashboard</h1><p className="muted">Ownership, workload and deadlines — in one place.</p></div>
         {dashboard.data && (
           <p className="muted">
             <CountLink count={dashboard.data.open_cases} filters={{}} label="open cases">
@@ -51,16 +51,45 @@ export function DashboardPage() {
       {dashboard.isPending && <p>Loading the dashboard…</p>}
       {dashboard.isError && <ErrorMessage error={dashboard.error} />}
       {dashboard.data && (
-        <div className="dashboard-grid">
+        <>
+          <Overview dashboard={dashboard.data} />
+          <div className="dashboard-grid">
           <div>
             <DeadlinesPanel dashboard={dashboard.data} />
             <VulnerabilityPanel dashboard={dashboard.data} />
           </div>
           <CategoriesPanel dashboard={dashboard.data} />
         </div>
+        </>
       )}
     </>
   )
+}
+
+function Overview({ dashboard }: { dashboard: Dashboard }) {
+  const assignments = dashboard.assignments ?? []
+  const unassigned = assignments.find((item) => item.user_id === null)?.open_cases ?? 0
+  return <>
+    <section className="overview-metrics" aria-label="Key metrics">
+      <article className="metric-card"><span>Open workload</span><strong>{dashboard.open_cases}</strong><small>Cases requiring attention</small></article>
+      <article className="metric-card metric-warning"><span>Awaiting an owner</span><strong><CountLink count={unassigned} filters={{ unassigned: true }} label="unassigned open cases" /></strong><small>Assign these cases to your team</small></article>
+      <article className="metric-card"><span>Final response at risk</span><strong>{dashboard.final_response.at_risk}</strong><small>Due within {dashboard.at_risk_business_days} business days</small></article>
+      <article className="metric-card metric-danger"><span>Overdue final responses</span><strong>{dashboard.final_response.overdue}</strong><small>Prioritise these cases</small></article>
+    </section>
+    <Panel title="Team workload">
+      <p className="muted">Who owns the open cases. Select a colleague to see their assigned cases.</p>
+      {assignments.length === 0 ? <p className="notice">No open cases. Your team is up to date.</p> :
+        <div className="workload-grid">{assignments.map((item) => <Link
+          key={item.user_id ?? 'unassigned'}
+          className={`workload-card${item.user_id ? '' : ' workload-unassigned'}`}
+          to={caseListLink({ open: true, ...(item.user_id ? { assigned_to_user_id: item.user_id } : { unassigned: true }) })}
+        >
+          <span className="owner-avatar" aria-hidden="true">{item.user_id ? item.display_name.split(' ').map((part) => part[0]).slice(0, 2).join('') : '?'}</span>
+          <span className="workload-person"><strong>{item.display_name}</strong><span>{plural(item.open_cases, 'open case')}</span><progress value={item.open_cases} max={Math.max(dashboard.open_cases, 1)} aria-label={`${item.display_name}: share of open cases`} /></span>
+          <span className="workload-arrow" aria-hidden="true">→</span>
+        </Link>)}</div>}
+    </Panel>
+  </>
 }
 
 /** A count that opens the matching cases. Zero is not a link: there is nothing to open. */

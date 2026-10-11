@@ -4,13 +4,14 @@ categories and vulnerability, for the open cases of the team lead's tenant.
 C# comparison: a read-side query service (the "Q" of CQRS) returning a view model.
 """
 
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from app.db.models import User
-from app.db.repositories import CaseRepository, DeadlineCriterion
+from app.db.repositories import CaseRepository, DeadlineCriterion, UserRepository
 from app.domain.business_calendar import BusinessCalendar
 from app.domain.deadline_risk import AT_RISK_BUSINESS_DAYS, deadline_window
 from app.domain.enums import (
@@ -44,7 +45,15 @@ class VulnerabilityCount:
 
 
 @dataclass(frozen=True)
+class AssigneeCount:
+    user_id: uuid.UUID | None
+    display_name: str
+    open_cases: int
+
+
+@dataclass(frozen=True)
 class Dashboard:
+    assignments: tuple[AssigneeCount, ...]
     generated_at: datetime
     open_cases: int
     at_risk_business_days: int
@@ -58,6 +67,7 @@ class Dashboard:
 class DashboardService:
     def __init__(self, session: Session, actor: User, calendar: BusinessCalendar) -> None:
         self.cases = CaseRepository(session, actor.tenant_id)
+        self.users = UserRepository(session, actor.tenant_id)
         self.calendar = calendar  # the actor's tenant's bank holidays
 
     def dashboard(self, now: datetime) -> Dashboard:
@@ -66,7 +76,17 @@ class DashboardService:
         decided = self.cases.count_by_final_category()
         suggested = self.cases.count_by_suggested_category()
         vulnerable = self.cases.count_by_confirmed_vulnerability()
+        assignments = self.cases.count_by_assignee()
+        names = self.users.display_names([key for key in assignments if key is not None])
         return Dashboard(
+            assignments=tuple(
+                AssigneeCount(
+                    key, names.get(key, "Assigned colleague") if key else "Unassigned", count
+                )
+                for key, count in sorted(
+                    assignments.items(), key=lambda item: (-item[1], str(item[0]))
+                )
+            ),
             generated_at=now,
             open_cases=self.cases.count_open(),
             at_risk_business_days=AT_RISK_BUSINESS_DAYS,

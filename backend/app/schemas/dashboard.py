@@ -1,5 +1,6 @@
 """The team lead dashboard (US-5). Every number counts open cases of the user's tenant only."""
 
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,9 +31,17 @@ class VulnerabilityCountRead(BaseModel):
     cases: int = Field(description="Open cases with at least one confirmed indicator of the type")
 
 
+class AssigneeCountRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    user_id: uuid.UUID | None
+    display_name: str
+    open_cases: int
+
+
 class DashboardRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
+    assignments: list[AssigneeCountRead]
     generated_at: datetime
     open_cases: int
     at_risk_business_days: int

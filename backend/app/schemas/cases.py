@@ -65,6 +65,7 @@ class CaseAssign(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     assigned_to_user_id: uuid.UUID | None
+    only_if_unassigned: bool = False
 
 
 class CategoryDecision(BaseModel):
@@ -153,6 +154,7 @@ class CaseRead(BaseModel):
     received_at: datetime
     status: CaseStatus
     assigned_to_user_id: uuid.UUID | None
+    assigned_to_display_name: str | None = None
     src_deadline_at: datetime | None
     final_response_deadline_at: datetime | None
     final_category: Category | None
@@ -183,6 +185,7 @@ class CaseSummary(BaseModel):
     received_at: datetime
     status: CaseStatus
     assigned_to_user_id: uuid.UUID | None
+    assigned_to_display_name: str | None = None
     src_deadline_at: datetime | None
     final_response_deadline_at: datetime | None
     deadline_tracking: DeadlineTrackingRead | None = None
@@ -192,6 +195,9 @@ class CaseSummary(BaseModel):
 
 
 class CaseFilters(BaseModel):
+    assigned_to_user_id: uuid.UUID | None = None
+    unassigned: bool = False
+
     """Query string filters of the case list. Each one narrows the list; they combine with AND.
 
     The dashboard (US-5.4) links every number to the list with the matching filters.
@@ -254,3 +260,17 @@ class AuditEventRead(BaseModel):
     actor_user_id: uuid.UUID | None
     correlation_id: str | None
     created_at: datetime
+
+
+class CaseResolve(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resolution_type: ResolutionType
+    note: str = Field(min_length=1, max_length=4000)
+
+    @model_validator(mode="after")
+    def require_note(self) -> "CaseResolve":
+        self.note = self.note.strip()
+        if not self.note:
+            raise ValueError("A resolution note is required")
+        return self

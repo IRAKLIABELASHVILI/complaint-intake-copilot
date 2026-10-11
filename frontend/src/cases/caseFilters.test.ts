@@ -19,6 +19,7 @@ describe('case filters in the URL', () => {
       '&suggested_category=fraud_and_scams&uncategorised=true&vulnerability=job_loss'
 
     expect(parse(query)).toEqual({
+      ...NO_FILTERS,
       status: 'in_progress',
       open: true,
       deadline: 'src',

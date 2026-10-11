@@ -33,8 +33,17 @@ export function CaseListPage() {
 
   return (
     <>
-      <div className="page-title">
-        <h1>Cases</h1>
+      <div className="page-title queue-heading">
+        <div><p className="eyebrow">Complaint workspace</p><h1>Cases</h1><p className="queue-description">Review complaints, track deadlines and see who is responsible.</p></div>
+        <Link className="new-case-action" to="/cases/new">+ New complaint</Link>
+      </div>
+
+      <section className="queue-toolbar" aria-label="Case filters">
+        <div className="queue-views" role="group" aria-label="Assignment">
+          <button type="button" aria-pressed={!filters.assigned_to_user_id && !filters.unassigned} onClick={() => setParams(filtersToSearch({ ...filters, assigned_to_user_id: null, unassigned: false }))}>All cases</button>
+          <button type="button" aria-pressed={filters.assigned_to_user_id === user.id} onClick={() => setParams(filtersToSearch({ ...filters, assigned_to_user_id: user.id, unassigned: false }))}>Assigned to me</button>
+          <button type="button" aria-pressed={filters.unassigned} onClick={() => setParams(filtersToSearch({ ...filters, assigned_to_user_id: null, unassigned: true }))}>Unassigned</button>
+        </div>
         <label className="inline">
           Status
           <select
@@ -49,7 +58,7 @@ export function CaseListPage() {
             ))}
           </select>
         </label>
-      </div>
+      </section>
 
       {described.length > 0 && (
         <section className="active-filters" aria-label="Active filters">
@@ -82,14 +91,14 @@ export function CaseListPage() {
       )}
       {cases.data && cases.data.items.length > 0 && (
         <>
-          <div className="table-scroll">
+          <div className="queue-results"><strong>{cases.data.total} {cases.data.total === 1 ? 'case' : 'cases'}</strong><span><i aria-hidden="true" /> Updates automatically</span></div>
+          <div className="table-scroll case-table-wrap">
           <table className="cases">
             <thead>
               <tr>
-                <th scope="col">Reference</th>
-                <th scope="col">Subject</th>
-                <th scope="col">Received</th>
+                <th scope="col" className="case-column">Case / subject</th>
                 <th scope="col">Status</th>
+                <th scope="col">Assigned to</th>
                 <th scope="col">Summary resolution</th>
                 <th scope="col">Final response</th>
                 <th scope="col">Vulnerability</th>
@@ -98,15 +107,21 @@ export function CaseListPage() {
             <tbody>
               {cases.data.items.map((item) => (
                 <tr key={item.id}>
-                  <td className="nowrap">
-                    <Link to={`/cases/${item.id}`} state={fromList}>
+                  <td className="case-column">
+                    <Link className="case-reference" to={`/cases/${item.id}`} state={fromList}>
                       {item.reference}
                     </Link>
+                    <Link className="case-subject" to={`/cases/${item.id}`} state={fromList}>{item.subject}</Link>
+                    <span className="case-received">Received {formatDateTime(item.received_at)}</span>
                   </td>
-                  <td>{item.subject}</td>
-                  <td className="nowrap">{formatDateTime(item.received_at)}</td>
                   <td>
                     <StatusBadge status={item.status} />
+                  </td>
+                  <td>
+                    <div className={`case-owner${item.assigned_to_user_id ? '' : ' case-owner-empty'}`}>
+                      <span className="case-owner-avatar" aria-hidden="true">{item.assigned_to_display_name ? item.assigned_to_display_name.split(' ').map((part) => part[0]).slice(0, 2).join('') : '—'}</span>
+                      <span>{item.assigned_to_display_name ?? (item.assigned_to_user_id ? 'Assigned user unavailable' : 'Unassigned')}</span>
+                    </div>
                   </td>
                   <td>
                     <DeadlineBadge progress={item.deadline_tracking?.src} />

@@ -285,3 +285,12 @@ def test_the_demo_data_has_two_tenants_with_cases_and_can_be_loaded_twice(db: Se
     assert db.scalar(select(func.count()).select_from(Tenant)) == 2
     assert len(cases_per_tenant) == 2
     assert all(count > 0 for count in cases_per_tenant.values())
+
+
+def test_assignee_names_are_tenant_scoped(db: Session, tenants: TwoTenants) -> None:
+    from app.db.repositories import UserRepository
+
+    names = UserRepository(db, tenants.handler_a.tenant_id).display_names(
+        [tenants.handler_a.id, tenants.handler_b.id]
+    )
+    assert names == {tenants.handler_a.id: "handler-a"}

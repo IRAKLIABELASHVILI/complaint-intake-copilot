@@ -316,3 +316,67 @@ def test_only_the_newest_completed_analysis_counts_as_the_suggestion(
     assert suggested["fees_and_charges"] == 0
     query = {"suggested_category": "fees_and_charges"}
     assert cases(client, tenants.lead_a, query)["total"] == 0
+
+
+def test_assignment_workload_and_filters(
+    client: TestClient, db: Session, tenants: TwoTenants, create_case: CreateCase
+) -> None:
+    owned = create_case(tenants.handler_a)
+    create_case(tenants.handler_a)
+    create_case(tenants.handler_b)
+    row = db.get_one(Case, uuid.UUID(owned["id"]))
+    row.assigned_to_user_id = tenants.handler_a.id
+    db.commit()
+    body = dashboard(client, tenants.lead_a)
+    counts = {item["user_id"]: item["open_cases"] for item in body["assignments"]}
+    assert counts == {str(tenants.handler_a.id): 1, None: 1}
+    assert (
+        cases(client, tenants.lead_a, {"assigned_to_user_id": str(tenants.handler_a.id)})["total"]
+        == 1
+    )
+    assert cases(client, tenants.lead_a, {"unassigned": "true"})["total"] == 1
+    assert (
+        cases(client, tenants.handler_b, {"assigned_to_user_id": str(tenants.handler_a.id)})[
+            "total"
+        ]
+        == 0
+    )
+    row.status = CaseStatus.RESOLVED
+    db.commit()
+    assert dashboard(client, tenants.lead_a)["assignments"] == [
+        {"user_id": None, "display_name": "Unassigned", "open_cases": 1}
+    ]
+
+
+def test_close_case_records_outcome_and_removes_open_workload(
+    client: TestClient, tenants: TwoTenants, create_case: CreateCase, analyse: Callable[..., None]
+) -> None:
+    case = create_case(tenants.handler_a)
+    path = f"/cases/{case['id']}/resolve"
+    payload = {
+        "resolution_type": "final_response",
+        "note": "Refund completed and outcome explained.",
+    }
+    assert client.post(path, json=payload, headers=tenants.handler_b.headers).status_code == 404
+    assert client.post(path, json=payload, headers=tenants.handler_a.headers).status_code == 409
+    analyse(tenants.handler_a, case, answer("fees_and_charges"))
+    assert (
+        client.post(
+            path, json={**payload, "note": "   "}, headers=tenants.handler_a.headers
+        ).status_code
+        == 422
+    )
+    response = client.post(path, json=payload, headers=tenants.handler_a.headers)
+    assert response.status_code == 200
+    closed = response.json()
+    assert closed["status"] == "resolved"
+    assert closed["resolved_at"] is not None
+    assert closed["resolution_type"] == "final_response"
+    assert closed["deadline_tracking"]["src"] is None
+    assert dashboard(client, tenants.lead_a)["open_cases"] == 0
+    repeat = client.post(path, json=payload, headers=tenants.handler_a.headers)
+    assert repeat.json()["resolved_at"] == closed["resolved_at"]
+    audit = client.get(f"/cases/{case['id']}/audit", headers=tenants.handler_a.headers).json()
+    events = [item for item in audit if item["action"] == "case_resolved"]
+    assert len(events) == 1
+    assert events[0]["new_value"]["note"] == payload["note"]

@@ -195,3 +195,90 @@ describe('a case', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Case not found')
   })
 })
+
+
+describe('case ownership visibility for team leads', () => {
+  it.each([
+    [null, null, 'Unassigned'],
+    ['u-1', 'Nina Handler', 'Nina Handler'],
+  ])('shows ownership in the list and detail: %s', async (id, name, label) => {
+    saveToken(GOOD_TOKEN)
+    const detail = caseDetail({ assigned_to_user_id: id, assigned_to_display_name: name })
+    const api = fakeApi({
+      'GET /me': () => ({ ...HANDLER, role: 'team_lead' }),
+      'GET /cases': () => caseList([summaryOf(detail)]),
+      'GET /cases/:id': () => detail,
+      'GET /cases/:id/audit': () => [],
+    })
+    renderApp('/cases', api.fetch)
+    const link = await screen.findByRole('link', { name: detail.reference })
+    expect(within(link.closest('tr')!).getByText(label!)).toBeInTheDocument()
+    await userEvent.click(link)
+    expect(await screen.findByText('Assigned to', { selector: 'dt' })).toBeInTheDocument()
+    expect(screen.getByText(label!, { selector: 'dd' })).toBeInTheDocument()
+  })
+})
+
+describe('claiming a case', () => {
+  it('assigns the case to the signed-in user and updates the ownership display', async () => {
+    saveToken(GOOD_TOKEN)
+    let detail = caseDetail()
+    const api = fakeApi({
+      'GET /me': () => HANDLER,
+      'GET /cases/:id': () => detail,
+      'GET /cases/:id/audit': () => [],
+      'PATCH /cases/:id/assignment': (_request, _params, body) => {
+        expect(body).toEqual({ assigned_to_user_id: HANDLER.id, only_if_unassigned: true })
+        detail = { ...detail, assigned_to_user_id: HANDLER.id, assigned_to_display_name: HANDLER.display_name }
+        return detail
+      },
+    })
+    renderApp('/cases/c-1', api.fetch)
+    await userEvent.click(await screen.findByRole('button', { name: 'Assign to me' }))
+    expect(await screen.findByText('Assigned to you')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Assign to me' })).not.toBeInTheDocument()
+  })
+
+  it('does not offer to take a case already held by a colleague', async () => {
+    saveToken(GOOD_TOKEN)
+    renderApp('/cases/c-1', backend(caseDetail({ assigned_to_user_id: 'other', assigned_to_display_name: 'Other colleague' })).fetch)
+    await screen.findByRole('region', { name: 'Case assignment' })
+    expect(screen.queryByRole('button', { name: 'Assign to me' })).not.toBeInTheDocument()
+  })
+
+  it('shows a conflict when another user claims the case first', async () => {
+    saveToken(GOOD_TOKEN)
+    const api = fakeApi({
+      'GET /me': () => HANDLER,
+      'GET /cases/:id': () => caseDetail(),
+      'GET /cases/:id/audit': () => [],
+      'PATCH /cases/:id/assignment': () => new HttpStatus(409, { detail: 'This case is already assigned.' }),
+    })
+    renderApp('/cases/c-1', api.fetch)
+    await userEvent.click(await screen.findByRole('button', { name: 'Assign to me' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('already assigned')
+    expect(screen.queryByText('Assigned to you')).not.toBeInTheDocument()
+  })
+})
+
+it('closes a case with a recorded outcome and shows the closed state', async () => {
+  saveToken(GOOD_TOKEN)
+  let detail = caseDetail()
+  const api = fakeApi({
+    'GET /me': () => HANDLER,
+    'GET /cases/:id': () => detail,
+    'GET /cases/:id/audit': () => [],
+    'POST /cases/:id/resolve': (_request, _params, body) => {
+      expect(body).toEqual({ resolution_type: 'final_response', note: 'Refund completed.' })
+      detail = { ...detail, status: 'resolved', resolved_at: '2026-10-11T12:00:00Z', resolution_type: 'final_response' }
+      return detail
+    },
+  })
+  renderApp('/cases/c-1', api.fetch)
+  await userEvent.click(await screen.findByRole('button', { name: 'Close case' }))
+  expect(screen.getByRole('button', { name: 'Confirm closure' })).toBeDisabled()
+  await userEvent.type(screen.getByLabelText('Resolution note'), 'Refund completed.')
+  await userEvent.click(screen.getByRole('button', { name: 'Confirm closure' }))
+  expect(await screen.findByRole('region', { name: 'Case closed' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Close case' })).not.toBeInTheDocument()
+})

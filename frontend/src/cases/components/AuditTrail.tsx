@@ -73,11 +73,12 @@ function describeValue(value: unknown, labels?: Record<string, string>): string 
   if (value === null || value === undefined) return '—'
   if (typeof value === 'string') return label(value, labels)
   if (typeof value === 'object') {
-    const { decision, type, status, reason } = value as Record<string, unknown>
+    const { decision, type, status, reason, note, resolution_type } = value as Record<string, unknown>
     if (typeof decision === 'string') return label(decision, DECISION_LABELS)
     if (typeof type === 'string') return label(type, INDICATOR_LABELS)
     if (typeof status === 'string') {
       const text = label(status, STATUS_LABELS)
+      if (typeof note === 'string') return `${text} (${resolution_type === 'src' ? 'Summary resolution' : 'Final response'}): ${note}`
       return typeof reason === 'string' ? `${text} (${reason})` : text
     }
   }

@@ -15,6 +15,7 @@ from app.schemas.cases import (
     CaseList,
     CaseListQuery,
     CaseRead,
+    CaseResolve,
     CaseSummary,
     CategoryDecision,
     DeadlineTrackingRead,
@@ -24,7 +25,12 @@ from app.schemas.cases import (
     PriorityDecision,
     SuggestionRead,
 )
-from app.services.case_service import AssigneeNotFoundError, CaseNotFoundError, CaseService
+from app.services.case_service import (
+    AssigneeNotFoundError,
+    AssignmentConflictError,
+    CaseNotFoundError,
+    CaseService,
+)
 from app.services.decision_service import (
     CaseNotDecidableError,
     EvidenceNotInComplaintError,
@@ -49,6 +55,10 @@ def _to_response[ResponseT: (CaseRead, CaseSummary)](
 def _case_detail(case: Case, service: CaseService, now: datetime) -> CaseRead:
     """The full case: deadlines plus what a handler reviews (suggestion, reason, indicators)."""
     detail = _to_response(CaseRead, case, service, now)
+    if case.assigned_to_user_id is not None:
+        detail.assigned_to_display_name = service.users.display_names(
+            [case.assigned_to_user_id]
+        ).get(case.assigned_to_user_id)
     review = service.review(case)
     detail.suggestion = (
         SuggestionRead.model_validate(review.suggestion) if review.suggestion else None
@@ -89,8 +99,13 @@ def list_cases(
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, CALENDAR_OUT_OF_DATE) from None
     flags = service.indicators.open_counts([case.id for case in cases])
     items = [_to_response(CaseSummary, case, service, now) for case in cases]
+    assignees = service.users.display_names(
+        [case.assigned_to_user_id for case in cases if case.assigned_to_user_id is not None]
+    )
     for item in items:
         item.open_vulnerability_flags = flags.get(item.id, 0)
+        if item.assigned_to_user_id is not None:
+            item.assigned_to_display_name = assignees.get(item.assigned_to_user_id)
     return CaseList(
         items=items,
         total=total,
@@ -114,9 +129,13 @@ def assign_case(
     case_id: uuid.UUID, data: CaseAssign, service: CaseServiceDep, now: NowDep
 ) -> CaseRead:
     try:
-        case = service.assign(case_id, data.assigned_to_user_id)
+        case = service.assign(
+            case_id, data.assigned_to_user_id, only_if_unassigned=data.only_if_unassigned
+        )
     except CaseNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND) from None
+    except AssignmentConflictError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
     except AssigneeNotFoundError:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "Assignee not found in your organisation"
@@ -223,4 +242,17 @@ def add_indicator(
         case = decisions.add_indicator(case_id, data.indicator_type, data.evidence_quote)
     except _DECISION_FAILURES as error:
         raise _decision_error(error) from None
+    return _case_detail(case, service, now)
+
+
+@router.post("/{case_id}/resolve", response_model=CaseRead)
+def resolve_case(
+    case_id: uuid.UUID, data: CaseResolve, service: CaseServiceDep, now: NowDep
+) -> CaseRead:
+    try:
+        case = service.resolve(case_id, data.resolution_type, data.note, now)
+    except CaseNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND) from None
+    except AssignmentConflictError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from None
     return _case_detail(case, service, now)

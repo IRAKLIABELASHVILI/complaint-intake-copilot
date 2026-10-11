@@ -181,3 +181,61 @@ def _request_bodies_accepting(field: str) -> list[str]:
             if field in schema["properties"]:
                 found.append(f"{method.upper()} {path}")
     return found
+
+
+def test_assignee_name_visible_to_lead_and_cleared_on_unassignment(
+    client: TestClient, tenants: TwoTenants, create_case: Callable[..., dict[str, object]]
+) -> None:
+    case = create_case(tenants.handler_a)
+    path = f"/cases/{case['id']}"
+    headers = tenants.lead_a.headers
+    assert client.get(path, headers=headers).json()["assigned_to_display_name"] is None
+    assigned = client.patch(
+        path + "/assignment",
+        json={"assigned_to_user_id": str(tenants.second_handler_a.id)},
+        headers=headers,
+    )
+    assert assigned.status_code == 200
+    assert assigned.json()["assigned_to_display_name"] == "handler-a2"
+    assert client.get(path, headers=headers).json()["assigned_to_display_name"] == "handler-a2"
+    assert (
+        client.get("/cases", headers=headers).json()["items"][0]["assigned_to_display_name"]
+        == "handler-a2"
+    )
+    cleared = client.patch(
+        path + "/assignment", json={"assigned_to_user_id": None}, headers=headers
+    )
+    assert cleared.json()["assigned_to_display_name"] is None
+    assert (
+        client.get("/cases", headers=headers).json()["items"][0]["assigned_to_display_name"] is None
+    )
+
+
+def test_claim_case_does_not_replace_colleague(
+    client: TestClient, tenants: TwoTenants, create_case: Callable[..., dict[str, object]]
+) -> None:
+    case = create_case(tenants.handler_a)
+    path = f"/cases/{case['id']}/assignment"
+    first = client.patch(
+        path,
+        headers=tenants.handler_a.headers,
+        json={"assigned_to_user_id": str(tenants.handler_a.id), "only_if_unassigned": True},
+    )
+    assert first.status_code == 200
+    repeated = client.patch(
+        path,
+        headers=tenants.handler_a.headers,
+        json={"assigned_to_user_id": str(tenants.handler_a.id), "only_if_unassigned": True},
+    )
+    assert repeated.status_code == 200
+    second = client.patch(
+        path,
+        headers=tenants.second_handler_a.headers,
+        json={"assigned_to_user_id": str(tenants.second_handler_a.id), "only_if_unassigned": True},
+    )
+    assert second.status_code == 409
+    assert client.get(f"/cases/{case['id']}", headers=tenants.lead_a.headers).json()[
+        "assigned_to_user_id"
+    ] == str(tenants.handler_a.id)
+    events = client.get(f"/cases/{case['id']}/audit", headers=tenants.lead_a.headers).json()
+    assert sum(event["action"] == "case_assigned" for event in events) == 1

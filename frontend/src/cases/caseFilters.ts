@@ -15,6 +15,8 @@ import {
 
 export interface CaseFilters {
   status: CaseStatus | null
+  assigned_to_user_id: string | null
+  unassigned: boolean
   open: boolean
   deadline: DeadlineKind | null
   deadline_risk: DeadlineRisk | null
@@ -26,6 +28,8 @@ export interface CaseFilters {
 
 export const NO_FILTERS: CaseFilters = {
   status: null,
+  assigned_to_user_id: null,
+  unassigned: false,
   open: false,
   deadline: null,
   deadline_risk: null,
@@ -42,6 +46,8 @@ export function parseFilters(params: URLSearchParams): CaseFilters {
   const bothDeadlineParts = deadline !== null && risk !== null // the API needs both or neither
   return {
     status: parseCode(STATUS_LABELS, params.get('status')),
+    assigned_to_user_id: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.get('assigned_to_user_id') ?? '') ? params.get('assigned_to_user_id') : null,
+    unassigned: params.get('unassigned') === 'true',
     open: params.get('open') === 'true',
     deadline: bothDeadlineParts ? deadline : null,
     deadline_risk: bothDeadlineParts ? risk : null,
@@ -72,6 +78,8 @@ export function caseListLink(filters: Partial<CaseFilters>): string {
 export function toApiQuery(filters: CaseFilters) {
   return {
     status: filters.status ?? undefined,
+    assigned_to_user_id: filters.assigned_to_user_id ?? undefined,
+    unassigned: filters.unassigned || undefined,
     open: filters.open || undefined,
     deadline: filters.deadline ?? undefined,
     deadline_risk: filters.deadline_risk ?? undefined,
@@ -85,6 +93,8 @@ export function toApiQuery(filters: CaseFilters) {
 /** Plain-English lines for every filter except status, which has its own drop-down. */
 export function describeFilters(filters: CaseFilters): string[] {
   const lines: string[] = []
+  if (filters.assigned_to_user_id) lines.push('Assigned to selected colleague')
+  if (filters.unassigned) lines.push('Unassigned cases')
   if (filters.open) lines.push('Open cases only')
   if (filters.deadline && filters.deadline_risk) {
     const deadline = DEADLINE_LABELS[filters.deadline]

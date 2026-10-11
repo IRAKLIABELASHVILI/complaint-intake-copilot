@@ -3,7 +3,7 @@ import type { CaseDetail, CaseList, CaseSummary, Dashboard, Indicator, User } fr
 import { CATEGORY_LABELS, optionsOf } from '../shared/labels'
 
 export const HANDLER: User = {
-  id: 'u-1',
+  id: '11111111-1111-4111-8111-111111111111',
   tenant_id: 't-1',
   email: 'nina@example.com',
   display_name: 'Nina Handler',
@@ -77,6 +77,7 @@ export function summaryOf(detail: CaseDetail, openFlags = 0): CaseSummary {
     received_at: detail.received_at,
     status: detail.status,
     assigned_to_user_id: detail.assigned_to_user_id,
+    assigned_to_display_name: detail.assigned_to_display_name,
     src_deadline_at: detail.src_deadline_at,
     final_response_deadline_at: detail.final_response_deadline_at,
     deadline_tracking: detail.deadline_tracking,
@@ -99,6 +100,7 @@ export function dashboard(overrides: Partial<Dashboard> = {}): Dashboard {
     suggested: 0,
   }))
   return {
+    assignments: [{ user_id: HANDLER.id, display_name: HANDLER.display_name, open_cases: 5 }, { user_id: null, display_name: 'Unassigned', open_cases: 2 }],
     generated_at: '2026-10-05T09:00:00Z',
     open_cases: 7,
     at_risk_business_days: 2,

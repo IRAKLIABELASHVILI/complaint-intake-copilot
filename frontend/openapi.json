@@ -1,6 +1,37 @@
 {
   "components": {
     "schemas": {
+      "AssigneeCountRead": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "open_cases": {
+            "title": "Open Cases",
+            "type": "integer"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "required": [
+          "user_id",
+          "display_name",
+          "open_cases"
+        ],
+        "title": "AssigneeCountRead",
+        "type": "object"
+      },
       "AuditEventRead": {
         "properties": {
           "action": {
@@ -111,6 +142,11 @@
               }
             ],
             "title": "Assigned To User Id"
+          },
+          "only_if_unassigned": {
+            "default": false,
+            "title": "Only If Unassigned",
+            "type": "boolean"
           }
         },
         "required": [
@@ -219,6 +255,17 @@
       },
       "CaseRead": {
         "properties": {
+          "assigned_to_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To Display Name"
+          },
           "assigned_to_user_id": {
             "anyOf": [
               {
@@ -422,6 +469,26 @@
         "title": "CaseRead",
         "type": "object"
       },
+      "CaseResolve": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          },
+          "resolution_type": {
+            "$ref": "#/components/schemas/ResolutionType"
+          }
+        },
+        "required": [
+          "resolution_type",
+          "note"
+        ],
+        "title": "CaseResolve",
+        "type": "object"
+      },
       "CaseStatus": {
         "enum": [
           "new",
@@ -437,6 +504,17 @@
       "CaseSummary": {
         "description": "Lighter shape for lists: no body.",
         "properties": {
+          "assigned_to_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To Display Name"
+          },
           "assigned_to_user_id": {
             "anyOf": [
               {
@@ -583,6 +661,13 @@
       },
       "DashboardRead": {
         "properties": {
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/AssigneeCountRead"
+            },
+            "title": "Assignments",
+            "type": "array"
+          },
           "at_risk_business_days": {
             "title": "At Risk Business Days",
             "type": "integer"
@@ -627,6 +712,7 @@
           }
         },
         "required": [
+          "assignments",
           "generated_at",
           "open_cases",
           "at_risk_business_days",
@@ -1115,6 +1201,33 @@
       "get": {
         "operationId": "list_cases_cases_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "assigned_to_user_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Assigned To User Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unassigned",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Unassigned",
+              "type": "boolean"
+            }
+          },
           {
             "in": "query",
             "name": "status",
@@ -1630,6 +1743,64 @@
           }
         ],
         "summary": "Decide Priority",
+        "tags": [
+          "cases"
+        ]
+      }
+    },
+    "/cases/{case_id}/resolve": {
+      "post": {
+        "operationId": "resolve_case_cases__case_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseResolve"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Resolve Case",
         "tags": [
           "cases"
         ]

@@ -26,6 +26,8 @@ export const queryKeys = {
   dashboard: ['dashboard'] as const,
 }
 
+// Pick up changes made by colleagues while this page is visible.
+const CASE_REFRESH_MS = 5000
 /** While the worker is analysing, poll so the suggestions appear without a manual refresh. */
 const ANALYSIS_POLL_MS = 2000
 const STILL_ANALYSING: ReadonlySet<CaseStatus> = new Set(['new', 'analysing'])
@@ -34,6 +36,7 @@ export function useCases(filters: CaseFilters, offset: number) {
   const api = useApi()
   return useQuery({
     queryKey: queryKeys.cases(filters, offset),
+    refetchInterval: CASE_REFRESH_MS,
     queryFn: async () =>
       unwrap(
         await api.GET('/cases', {
@@ -44,7 +47,7 @@ export function useCases(filters: CaseFilters, offset: number) {
 }
 
 /** Countdowns move with the clock and cases keep arriving: refresh while the page is open. */
-const DASHBOARD_REFRESH_MS = 60_000
+const DASHBOARD_REFRESH_MS = 5000
 
 /** US-5. `enabled: false` for handlers: the API would answer 403, so do not even ask. */
 export function useDashboard(enabled: boolean) {
@@ -64,7 +67,7 @@ export function useCase(caseId: string) {
     queryFn: async () =>
       unwrap(await api.GET('/cases/{case_id}', { params: { path: { case_id: caseId } } })),
     refetchInterval: (query) =>
-      query.state.data && STILL_ANALYSING.has(query.state.data.status) ? ANALYSIS_POLL_MS : false,
+      query.state.data && STILL_ANALYSING.has(query.state.data.status) ? ANALYSIS_POLL_MS : CASE_REFRESH_MS,
   })
 }
 
@@ -72,6 +75,7 @@ export function useAuditTrail(caseId: string) {
   const api = useApi()
   return useQuery({
     queryKey: queryKeys.audit(caseId),
+    refetchInterval: CASE_REFRESH_MS,
     queryFn: async () =>
       unwrap(await api.GET('/cases/{case_id}/audit', { params: { path: { case_id: caseId } } })),
   })
@@ -149,5 +153,23 @@ export function useAddIndicator(caseId: string) {
           body,
         }),
       ),
+  )
+}
+
+export function useClaimCase(caseId: string) {
+  const api = useApi()
+  return useCaseDecision(caseId, async (userId: string) =>
+    unwrap(await api.PATCH('/cases/{case_id}/assignment', {
+      params: { path: { case_id: caseId } },
+      body: { assigned_to_user_id: userId, only_if_unassigned: true },
+    })),
+  )
+}
+
+
+export function useResolveCase(caseId: string) {
+  const api = useApi()
+  return useCaseDecision(caseId, async (body: { resolution_type: 'src' | 'final_response'; note: string }) =>
+    unwrap(await api.POST('/cases/{case_id}/resolve', { params: { path: { case_id: caseId } }, body })),
   )
 }

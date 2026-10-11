@@ -31,7 +31,7 @@ from app.domain.deadlines import (
     calculate_deadlines,
     track_deadlines,
 )
-from app.domain.enums import AnalysisStatus, AuditSource, CaseStatus
+from app.domain.enums import AnalysisStatus, AuditSource, CaseStatus, ResolutionType
 from app.logging_config import correlation_id_var
 from app.messaging.outbox import analysis_job_message
 from app.schemas.cases import CaseCreate, CaseFilters
@@ -40,6 +40,10 @@ logger = logging.getLogger(__name__)
 
 
 class CaseNotFoundError(Exception):
+    pass
+
+
+class AssignmentConflictError(Exception):
     pass
 
 
@@ -126,6 +130,8 @@ class CaseService:
             deadline = DeadlineCriterion(filters.deadline, window)
         criteria = CaseCriteria(
             status=filters.status,
+            assigned_to_user_id=filters.assigned_to_user_id,
+            unassigned=filters.unassigned,
             # A countdown stops when a case is resolved, so deadline filters imply open cases.
             open_only=filters.open_only or deadline is not None,
             deadline=deadline,
@@ -176,8 +182,49 @@ class CaseService:
             raise CaseNotFoundError(case_id)
         return case
 
-    def assign(self, case_id: uuid.UUID, assignee_id: uuid.UUID | None) -> Case:
-        case = self.get(case_id)
+    def resolve(
+        self, case_id: uuid.UUID, resolution_type: ResolutionType, note: str, now: datetime
+    ) -> Case:
+        case = self.cases.get_for_update(case_id)
+        if case is None:
+            raise CaseNotFoundError(case_id)
+        if case.status == CaseStatus.RESOLVED:
+            return case
+        if case.status in _NOT_YET_ANALYSED:
+            raise AssignmentConflictError("Wait for analysis to finish before closing this case.")
+        old_status = case.status
+        case.status = CaseStatus.RESOLVED
+        case.resolved_at = now
+        case.resolution_type = resolution_type
+        self._record(
+            case,
+            action="case_resolved",
+            source=AuditSource.HANDLER,
+            field="status",
+            old_value=old_status.value,
+            new_value={
+                "status": "resolved",
+                "resolution_type": resolution_type.value,
+                "resolved_at": now.isoformat(),
+                "note": note,
+            },
+        )
+        self.session.commit()
+        return case
+
+    def assign(
+        self, case_id: uuid.UUID, assignee_id: uuid.UUID | None, *, only_if_unassigned: bool = False
+    ) -> Case:
+        case = self.cases.get_for_update(case_id)
+        if case is None:
+            raise CaseNotFoundError(case_id)
+        if only_if_unassigned and (
+            case.status == CaseStatus.RESOLVED
+            or case.assigned_to_user_id not in (None, assignee_id)
+        ):
+            raise AssignmentConflictError(
+                "This case is already assigned or resolved. Refresh to see its current state."
+            )
         # The assignee must belong to the same tenant. UserRepository is tenant-scoped,
         # so a user from another tenant simply "does not exist" here.
         if assignee_id is not None and self.users.get(assignee_id) is None:

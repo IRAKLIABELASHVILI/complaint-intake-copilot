@@ -171,3 +171,12 @@ describe('the filtered case list', () => {
     )
   })
 })
+
+it('opens the selected colleague workload and unassigned cases', async () => {
+  const { api } = signedIn('/dashboard')
+  const panel = within(await screen.findByRole('region', { name: 'Team workload' }))
+  expect(panel.getByRole('link', { name: /Unassigned/ })).toHaveAttribute('href', '/cases?unassigned=true&open=true')
+  await userEvent.click(panel.getByRole('link', { name: new RegExp(HANDLER.display_name) }))
+  await waitFor(() => expect(api.requests.some((call) => call.search.get('assigned_to_user_id') === HANDLER.id)).toBe(true))
+})
+

@@ -81,6 +81,8 @@ class CaseCriteria:
     """Which cases a list shows. Every field narrows the result; the defaults match everything."""
 
     status: CaseStatus | None = None
+    assigned_to_user_id: uuid.UUID | None = None
+    unassigned: bool = False
     open_only: bool = False
     deadline: DeadlineCriterion | None = None
     final_category: Category | None = None
@@ -127,6 +129,10 @@ class CaseRepository(TenantScopedRepository[Case]):
     def get(self, case_id: uuid.UUID) -> Case | None:
         return self.session.scalars(self._scoped(select(Case).where(Case.id == case_id))).first()
 
+    def get_for_update(self, case_id: uuid.UUID) -> Case | None:
+        statement = self._scoped(select(Case).where(Case.id == case_id)).with_for_update()
+        return self.session.scalars(statement.execution_options(populate_existing=True)).first()
+
     def get_by_external_message_id(self, external_message_id: str) -> Case | None:
         statement = select(Case).where(Case.external_message_id == external_message_id)
         return self.session.scalars(self._scoped(statement)).first()
@@ -144,6 +150,14 @@ class CaseRepository(TenantScopedRepository[Case]):
         return self._add(case)
 
     # --- Dashboard counts: open cases only ------------------------------------------------------
+
+    def count_by_assignee(self) -> dict[uuid.UUID | None, int]:
+        statement = (
+            self._scoped(select(Case.assigned_to_user_id, func.count()))
+            .where(_is_open())
+            .group_by(Case.assigned_to_user_id)
+        )
+        return _as_counts(self.session.execute(statement).all())
 
     def count_open(self) -> int:
         statement = self._scoped(select(func.count()).select_from(Case)).where(_is_open())
@@ -207,6 +221,10 @@ class CaseRepository(TenantScopedRepository[Case]):
         conditions: list[ColumnElement[bool]] = []
         if criteria.status is not None:
             conditions.append(Case.status == criteria.status)
+        if criteria.assigned_to_user_id is not None:
+            conditions.append(Case.assigned_to_user_id == criteria.assigned_to_user_id)
+        if criteria.unassigned:
+            conditions.append(Case.assigned_to_user_id.is_(None))
         if criteria.open_only:
             conditions.append(_is_open())
         if criteria.deadline is not None:
@@ -283,6 +301,14 @@ class CaseRepository(TenantScopedRepository[Case]):
 
 class UserRepository(TenantScopedRepository[User]):
     model = User
+
+    def display_names(self, user_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, str]:
+        if not user_ids:
+            return {}
+        rows = self.session.execute(
+            self._scoped(select(User.id, User.display_name).where(User.id.in_(user_ids)))
+        )
+        return {user_id: name for user_id, name in rows}
 
     def get(self, user_id: uuid.UUID) -> User | None:
         return self.session.scalars(self._scoped(select(User).where(User.id == user_id))).first()

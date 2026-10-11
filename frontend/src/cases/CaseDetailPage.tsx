@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 
-import { useCase } from '../api/hooks'
+import { useCase, useClaimCase, useResolveCase } from '../api/hooks'
 import type { CaseDetail, CaseStatus } from '../api/types'
+import { useCurrentUser } from '../auth/authContext'
 import { formatDateTime } from '../shared/format'
 import { backToList } from './caseFilters'
 import { ErrorMessage, Panel } from '../shared/Layout'
@@ -33,6 +35,12 @@ export function CaseDetailPage() {
 
 function CaseView({ detail }: { detail: CaseDetail }) {
   const back = backToList(useLocation().state)
+  const user = useCurrentUser()
+  const claim = useClaimCase(detail.id)
+  const resolve = useResolveCase(detail.id)
+  const [closing, setClosing] = useState(false)
+  const [note, setNote] = useState('')
+  const [resolutionType, setResolutionType] = useState<'src' | 'final_response'>('final_response')
   const canDecide = DECIDABLE.has(detail.status)
   const analysing = detail.status === 'new' || detail.status === 'analysing'
 
@@ -41,12 +49,45 @@ function CaseView({ detail }: { detail: CaseDetail }) {
       <p>
         <Link to={back.to}>{back.label}</Link>
       </p>
-      <div className="page-title">
-        <h1>
-          {detail.reference} · {detail.subject}
-        </h1>
+      <div className="case-heading">
+        <div>
+          <p className="eyebrow">{detail.reference}</p>
+          <h1>{detail.subject}</h1>
+        </div>
         <StatusBadge status={detail.status} />
       </div>
+      <section className="ownership-bar" aria-label="Case assignment">
+        <div>
+          <dl className="ownership-facts">
+            <dt className="eyebrow">Assigned to</dt>
+            <dd>{detail.assigned_to_display_name ?? (detail.assigned_to_user_id ? 'Assigned user unavailable' : 'Unassigned')}</dd>
+          </dl>
+          {detail.assigned_to_user_id === user.id && <span className="ownership-you">Assigned to you</span>}
+        </div>
+        {!detail.assigned_to_user_id && detail.status !== 'resolved' && (
+          <button type="button" disabled={claim.isPending} onClick={() => claim.mutate(user.id)}>
+            {claim.isPending ? 'Assigning…' : 'Assign to me'}
+          </button>
+        )}
+        {claim.isError && <ErrorMessage error={claim.error} />}
+      </section>
+
+      {detail.status === 'resolved' ? (
+        <section className="resolution-banner" aria-label="Case closed"><strong>Case closed</strong><p>{detail.resolution_type === 'src' ? 'Summary resolution' : 'Final response'} · {detail.resolved_at ? formatDateTime(detail.resolved_at) : ''}</p><span>The resolution note is recorded in the audit trail.</span></section>
+      ) : canDecide && (
+        <section className="close-case-panel" aria-label="Close case">
+          <div><h2>Ready to close this case?</h2><p>Record the outcome once the complaint has been handled.</p></div>
+          {!closing ? <button type="button" onClick={() => setClosing(true)}>Close case</button> : (
+            <form onSubmit={(event) => { event.preventDefault(); resolve.mutate({ resolution_type: resolutionType, note: note.trim() }) }}>
+              <label>Resolution type<select value={resolutionType} onChange={(event) => setResolutionType(event.target.value as 'src' | 'final_response')}><option value="final_response">Final response</option><option value="src">Summary resolution</option></select></label>
+              <label>Resolution note<textarea required maxLength={4000} rows={3} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Explain how the complaint was resolved…" /></label>
+              <p className="hint">This records closure and stops the deadline countdown. It does not send a response to the customer.</p>
+              <div className="resolution-actions"><button type="submit" disabled={resolve.isPending || !note.trim()}>{resolve.isPending ? 'Closing…' : 'Confirm closure'}</button><button type="button" disabled={resolve.isPending} onClick={() => setClosing(false)}>Cancel</button></div>
+              {resolve.isError && <ErrorMessage error={resolve.error} />}
+            </form>
+          )}
+        </section>
+      )}
 
       {analysing && (
         <p className="notice" role="status">
