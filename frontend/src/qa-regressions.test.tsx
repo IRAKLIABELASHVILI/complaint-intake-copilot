@@ -60,7 +60,8 @@ describe('BUG-1: signing in returns to the exact view asked for', () => {
     const api = backend()
     renderApp('/cases?status=in_progress', api.fetch)
 
-    await userEvent.type(await screen.findByLabelText('API token'), TOKEN)
+    await userEvent.type(await screen.findByLabelText('Email'), 'handler@example.com')
+    await userEvent.type(await screen.findByLabelText('Password'), TOKEN)
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
     await screen.findByRole('heading', { name: 'Cases' })

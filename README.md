@@ -33,10 +33,22 @@ docker compose up --build
 
 This starts PostgreSQL and RabbitMQ, applies the Alembic migrations, loads fictional demo data, serves the API and the web app, and runs the outbox relay and the analysis worker. The seeded complaints are analysed by the offline fake model within seconds, with no API key.
 
-- **Web app:** http://localhost:8080 (sign in with a demo token below)
+Create the first administrator after startup:
+
+```bash
+docker compose exec api python -m app.devtools.create_admin --email admin@example.com
+```
+
+The command prompts for a password (at least 12 characters). Use the email and password to sign in.
+An actual mailbox is not required for local use; no email is sent. Administrators create other
+accounts under **Accounts**, selecting handler/team lead and optional account-management permission.
+Sessions expire after eight hours and are revoked on sign-out. Five failed password attempts lock
+an account for fifteen minutes. Demo bearer tokens are disabled by default.
+
+- **Web app:** http://localhost:8080
 - **API docs (Swagger UI):** http://localhost:8000/docs
 - **RabbitMQ management UI:** http://localhost:15672 (`cic` / `cic`, local only): queues `case.analysis`, `case.analysis.retry`, `case.analysis.dead`
-- **Demo tokens:** paste one into the web app's sign-in page, or into **Authorize** in Swagger UI.
+- **Legacy test tokens:** API-only, available only when `ALLOW_DEMO_TOKENS=true`. The UI uses email and password.
 
 | Tenant (fictional) | Role | Token |
 |---|---|---|
@@ -123,7 +135,7 @@ LLM_BASE_URL=                # Azure: https://<resource>.openai.azure.com/openai
 
 - **Names in free text are not always caught.** Regex redaction catches the sender's name and names after greetings and sign-offs, but not a relative mentioned in passing ("my husband Peter"). A production system would add an NER model (e.g. Microsoft Presidio) and Azure OpenAI with UK data residency.
 - **Not every kind of personal data has a rule.** Emails, phones, cards, accounts, sort codes, postcodes, names, National Insurance numbers and dates of birth do. Street addresses (beyond the postcode) and IBANs do not yet.
-- **Authentication is deliberately simple:** static, hashed bearer tokens for seeded demo users. Production would use Entra ID / OIDC, with rate limiting and HTTPS in front.
+- **Authentication:** administrator-created password accounts, scrypt hashes and hashed, expiring session tokens. Public deployment still needs HTTPS, edge rate limiting and an operational account recovery process.
 - **Prompt injection is contained, not prevented.** The complaint is fenced as data and the model is told to ignore instructions in it. What protects the firm is the rest: strict output validation, evidence checks, and a person making every decision.
 
 ## Regulatory deadlines
@@ -146,7 +158,7 @@ python -m app.reference_data.refresh_bank_holidays
 
 ## Team lead dashboard
 
-Sign in as a team lead (`demo-nb-lead`) and open **Dashboard**. For the open cases of your own tenant it shows:
+Sign in with a team lead account and open **Dashboard**. For the open cases of your own tenant it shows:
 
 - **Deadlines:** cases **at risk** (2 business days or fewer left) and **overdue**, for each deadline separately. Missing the SRC deadline is not a breach (the case then needs a final response within 8 weeks), so it is not mixed up with an overdue final response, which is.
 - **Categories:** decided by a person, and suggested by the AI but not decided yet, in separate columns, so a suggestion is never read as a decision.
@@ -166,3 +178,22 @@ Every number is a link to the case list with the matching filters (`GET /cases?o
 - [Architecture](docs/architecture.md)
 
 All complaint data in this repository is synthetic and fictional.
+
+
+## Workspace tools
+
+- Search references, subjects and complaint text; combine with inclusive received dates (UTC),
+  ownership, status and deadline filters. Save a named view privately to your account, or use
+  **My overdue cases** for your open cases with overdue final responses.
+- Add internal comments or hand over a case with a required reason. Both appear in the same audit
+  history as decisions and closure; comments are append-only.
+- **Deadline alerts** refresh every thirty seconds. Handlers see their assigned cases; team leads
+  see their tenant's cases. Summary-resolution and final-response dates are labelled separately.
+- Generate response drafts, edit them and explicitly approve after review. Approved drafts are
+  immutable; concurrent edits return a conflict. Approval never sends mail. With the default
+  fake provider this is an explicitly labelled offline template. Configure `LLM_PROVIDER`,
+  `LLM_API_KEY`, `LLM_MODEL` and optional `LLM_BASE_URL` for real generation. The existing redactor
+  runs before generation; its documented limitations still apply.
+
+The legacy smoke script uses API tokens. Run it only against an isolated stack started with
+`ALLOW_DEMO_TOKENS=true`; normal password-only operation does not enable those tokens.

@@ -12,7 +12,7 @@ export type AuthState =
 
 export interface Auth {
   state: AuthState
-  signIn: (token: string) => Promise<void>
+  signIn: (email: string, password: string) => Promise<void>
   signOut: () => void
 }
 

@@ -36,34 +36,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     staleTime: Infinity, // who you are does not change while you are signed in
   })
 
-  const signOut = useCallback(() => {
+  const clearSession = useCallback(() => {
     clearToken()
     queryClient.clear() // no cached cases from this user may survive
     setToken(null)
   }, [queryClient])
 
-  const signIn = useCallback(
-    async (candidate: string) => {
-      const trimmed = candidate.trim()
-      saveToken(trimmed) // the client reads the token from the session for this request
-      try {
-        await queryClient.fetchQuery({ queryKey: meKey(trimmed), queryFn: () => fetchMe(api) })
-      } catch (error) {
-        clearToken()
-        if (error instanceof ApiError && error.status === 401) {
-          throw new ApiError(401, 'That token was not accepted.')
-        }
-        throw error
-      }
-      setToken(trimmed)
-    },
-    [api, queryClient],
-  )
+  const signOut = useCallback(() => {
+    void api.POST('/auth/logout').then(clearSession, clearSession)
+  }, [api, clearSession])
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    const result = unwrap(await api.POST('/auth/login', { body: { email, password } }))
+    saveToken(result.token)
+    try {
+      await queryClient.fetchQuery({ queryKey: meKey(result.token), queryFn: () => fetchMe(api) })
+      setToken(result.token)
+    } catch (error) {
+      clearSession()
+      throw error
+    }
+  }, [api, queryClient, clearSession])
 
   useEffect(() => {
-    window.addEventListener(SESSION_EXPIRED_EVENT, signOut)
-    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, signOut)
-  }, [signOut])
+    window.addEventListener(SESSION_EXPIRED_EVENT, clearSession)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, clearSession)
+  }, [clearSession])
 
   const state: AuthState = useMemo(() => {
     if (token === null || me.isError) return { status: 'signed-out' }

@@ -53,7 +53,6 @@ class AssigneeCount:
 
 @dataclass(frozen=True)
 class Dashboard:
-    assignments: tuple[AssigneeCount, ...]
     generated_at: datetime
     open_cases: int
     at_risk_business_days: int
@@ -62,6 +61,7 @@ class Dashboard:
     categories: tuple[CategoryCount, ...]
     uncategorised: int
     vulnerabilities: tuple[VulnerabilityCount, ...]
+    assignments: tuple[AssigneeCount, ...]
 
 
 class DashboardService:
@@ -76,17 +76,7 @@ class DashboardService:
         decided = self.cases.count_by_final_category()
         suggested = self.cases.count_by_suggested_category()
         vulnerable = self.cases.count_by_confirmed_vulnerability()
-        assignments = self.cases.count_by_assignee()
-        names = self.users.display_names([key for key in assignments if key is not None])
         return Dashboard(
-            assignments=tuple(
-                AssigneeCount(
-                    key, names.get(key, "Assigned colleague") if key else "Unassigned", count
-                )
-                for key, count in sorted(
-                    assignments.items(), key=lambda item: (-item[1], str(item[0]))
-                )
-            ),
             generated_at=now,
             open_cases=self.cases.count_open(),
             at_risk_business_days=AT_RISK_BUSINESS_DAYS,
@@ -102,6 +92,23 @@ class DashboardService:
                 VulnerabilityCount(kind, driver_for(kind), vulnerable.get(kind, 0))
                 for kind in IndicatorType
             ),
+            assignments=self._assignee_counts(),
+        )
+
+    def _assignee_counts(self) -> tuple[AssigneeCount, ...]:
+        """Open cases per person, busiest first; cases nobody owns are one more row."""
+        counts = self.cases.count_by_assignee()
+        names = self.users.display_names([user_id for user_id in counts if user_id is not None])
+
+        def name_of(user_id: uuid.UUID | None) -> str:
+            if user_id is None:
+                return "Unassigned"
+            return names.get(user_id, "Assigned colleague")
+
+        busiest_first = sorted(counts.items(), key=lambda item: (-item[1], str(item[0])))
+        return tuple(
+            AssigneeCount(user_id, name_of(user_id), open_cases)
+            for user_id, open_cases in busiest_first
         )
 
     def _deadline_counts(self, now: datetime) -> dict[DeadlineKind, DeadlineCounts]:

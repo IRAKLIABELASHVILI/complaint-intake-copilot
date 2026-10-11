@@ -7,6 +7,11 @@ x-backend: &backend
     DATABASE_URL: postgresql+psycopg://cic:cic@db:5432/cic
     RABBITMQ_URL: amqp://cic:cic@rabbitmq:5672/%2F
     LOG_LEVEL: INFO
+    ALLOW_DEMO_TOKENS: ${ALLOW_DEMO_TOKENS:-false}
+    LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+    LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+    LLM_API_KEY: ${LLM_API_KEY:-}
+    LLM_BASE_URL: ${LLM_BASE_URL:-}
 
 services:
   db:

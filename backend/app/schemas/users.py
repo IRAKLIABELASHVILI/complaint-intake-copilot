@@ -13,3 +13,4 @@ class UserRead(BaseModel):
     email: str
     display_name: str
     role: UserRole
+    is_admin: bool = False

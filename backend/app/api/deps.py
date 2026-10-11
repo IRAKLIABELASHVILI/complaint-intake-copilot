@@ -14,7 +14,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db.models import Tenant, User
+from app.db.repositories import AccountRepository
 from app.db.session import new_session
 from app.domain.business_calendar import BusinessCalendar
 from app.domain.enums import UserRole
@@ -52,9 +54,10 @@ def get_current_user(
     """
     if credentials is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
-    user = session.scalars(
-        select(User).where(User.api_token_hash == hash_token(credentials.credentials))
-    ).first()
+    token_hash = hash_token(credentials.credentials)
+    user = AccountRepository(session).by_session(token_hash, datetime.now(UTC))
+    if user is None and get_settings().allow_demo_tokens:
+        user = session.scalars(select(User).where(User.api_token_hash == token_hash)).first()
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
     return user

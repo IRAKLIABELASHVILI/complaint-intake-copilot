@@ -7,7 +7,8 @@ import { useAuth } from './authContext'
 export function SignInPage() {
   const { state, signIn } = useAuth()
   const location = useLocation()
-  const [token, setToken] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
 
@@ -21,7 +22,7 @@ export function SignInPage() {
     setBusy(true)
     setError(null)
     try {
-      await signIn(token)
+      await signIn(email, password)
     } catch (caught) {
       setError(caught)
     } finally {
@@ -31,25 +32,58 @@ export function SignInPage() {
 
   return (
     <main className="sign-in">
-      <h1>Complaint Intake Copilot</h1>
-      <form onSubmit={submit} className="panel">
-        <label htmlFor="token">API token</label>
-        <input
-          id="token"
-          type="password"
-          autoComplete="off"
-          value={token}
-          onChange={(event) => setToken(event.target.value)}
-          required
-        />
-        <p className="hint">
-          Local demo: use a token from the README, for example <code>demo-nb-handler</code>.
-        </p>
-        {error !== null && <ErrorMessage error={error} />}
-        <button type="submit" disabled={busy || token.trim() === ''}>
-          {busy ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+      <section className="sign-in-brand" aria-label="About">
+        <span className="brand">
+          <span className="brand-mark" aria-hidden="true">
+            CI
+          </span>
+          Complaint Intake Copilot
+        </span>
+        <div>
+          <h2>Every complaint answered on time, by a person.</h2>
+          <ul>
+            <li>Regulatory deadlines counted in business days, for every case.</li>
+            <li>AI suggestions for category, priority and vulnerability: a handler decides.</li>
+            <li>Every decision recorded in the case history.</li>
+          </ul>
+        </div>
+        <small>All data is fictional.</small>
+      </section>
+      <section className="sign-in-form">
+        <div>
+          <h1>Sign in to your workspace</h1>
+          <p className="muted">Sign in with the account your administrator created.</p>
+          <form onSubmit={submit}>
+            <label htmlFor="email">
+              Email
+              <input
+                id="email"
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </label>
+            <label htmlFor="password">
+              Password
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                maxLength={256}
+              />
+            </label>
+            {error !== null && <ErrorMessage error={error} />}
+            <button type="submit" disabled={busy || !email.trim() || !password}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+        </div>
+      </section>
     </main>
   )
 }

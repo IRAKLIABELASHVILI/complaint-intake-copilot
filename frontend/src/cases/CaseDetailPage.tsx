@@ -1,24 +1,21 @@
-import { useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 
-import { useCase, useClaimCase, useResolveCase } from '../api/hooks'
-import type { CaseDetail, CaseStatus } from '../api/types'
-import { useCurrentUser } from '../auth/authContext'
+import { useCase } from '../api/hooks'
+import type { CaseDetail } from '../api/types'
 import { formatDateTime } from '../shared/format'
-import { backToList } from './caseFilters'
 import { ErrorMessage, Panel } from '../shared/Layout'
+import { backToList } from './caseFilters'
+import { Collaboration } from './components/Collaboration'
+import { ResponseDrafts } from './components/ResponseDrafts'
 import { AuditTrail } from './components/AuditTrail'
 import { StatusBadge } from './components/badges'
+import { ClosedBanner, CloseCasePanel } from './components/CaseClosure'
 import { DeadlinesPanel } from './components/DeadlinesPanel'
 import { IndicatorsPanel } from './components/IndicatorsPanel'
+import { OwnershipBar } from './components/OwnershipBar'
 import { SuggestionPanel } from './components/SuggestionPanel'
 
-/** The same rule as the API's: decisions once the analysis is over, until the case is resolved. */
-const DECIDABLE: ReadonlySet<CaseStatus> = new Set([
-  'awaiting_review',
-  'needs_human_review',
-  'in_progress',
-])
+import { canDecide as canDecideCase, isAnalysing } from './status'
 
 export function CaseDetailPage() {
   const { caseId = '' } = useParams()
@@ -35,59 +32,25 @@ export function CaseDetailPage() {
 
 function CaseView({ detail }: { detail: CaseDetail }) {
   const back = backToList(useLocation().state)
-  const user = useCurrentUser()
-  const claim = useClaimCase(detail.id)
-  const resolve = useResolveCase(detail.id)
-  const [closing, setClosing] = useState(false)
-  const [note, setNote] = useState('')
-  const [resolutionType, setResolutionType] = useState<'src' | 'final_response'>('final_response')
-  const canDecide = DECIDABLE.has(detail.status)
-  const analysing = detail.status === 'new' || detail.status === 'analysing'
+  const canDecide = canDecideCase(detail.status)
+  const analysing = isAnalysing(detail.status)
 
   return (
     <>
-      <p>
+      <p className="back-link">
         <Link to={back.to}>{back.label}</Link>
       </p>
-      <div className="case-heading">
-        <div>
-          <p className="eyebrow">{detail.reference}</p>
+      <header className="case-header">
+        <div className="case-header-main">
+          <div className="case-header-meta">
+            <span className="case-reference-tag">{detail.reference}</span>
+            <StatusBadge status={detail.status} />
+          </div>
           <h1>{detail.subject}</h1>
         </div>
-        <StatusBadge status={detail.status} />
-      </div>
-      <section className="ownership-bar" aria-label="Case assignment">
-        <div>
-          <dl className="ownership-facts">
-            <dt className="eyebrow">Assigned to</dt>
-            <dd>{detail.assigned_to_display_name ?? (detail.assigned_to_user_id ? 'Assigned user unavailable' : 'Unassigned')}</dd>
-          </dl>
-          {detail.assigned_to_user_id === user.id && <span className="ownership-you">Assigned to you</span>}
-        </div>
-        {!detail.assigned_to_user_id && detail.status !== 'resolved' && (
-          <button type="button" disabled={claim.isPending} onClick={() => claim.mutate(user.id)}>
-            {claim.isPending ? 'Assigning…' : 'Assign to me'}
-          </button>
-        )}
-        {claim.isError && <ErrorMessage error={claim.error} />}
-      </section>
-
-      {detail.status === 'resolved' ? (
-        <section className="resolution-banner" aria-label="Case closed"><strong>Case closed</strong><p>{detail.resolution_type === 'src' ? 'Summary resolution' : 'Final response'} · {detail.resolved_at ? formatDateTime(detail.resolved_at) : ''}</p><span>The resolution note is recorded in the audit trail.</span></section>
-      ) : canDecide && (
-        <section className="close-case-panel" aria-label="Close case">
-          <div><h2>Ready to close this case?</h2><p>Record the outcome once the complaint has been handled.</p></div>
-          {!closing ? <button type="button" onClick={() => setClosing(true)}>Close case</button> : (
-            <form onSubmit={(event) => { event.preventDefault(); resolve.mutate({ resolution_type: resolutionType, note: note.trim() }) }}>
-              <label>Resolution type<select value={resolutionType} onChange={(event) => setResolutionType(event.target.value as 'src' | 'final_response')}><option value="final_response">Final response</option><option value="src">Summary resolution</option></select></label>
-              <label>Resolution note<textarea required maxLength={4000} rows={3} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Explain how the complaint was resolved…" /></label>
-              <p className="hint">This records closure and stops the deadline countdown. It does not send a response to the customer.</p>
-              <div className="resolution-actions"><button type="submit" disabled={resolve.isPending || !note.trim()}>{resolve.isPending ? 'Closing…' : 'Confirm closure'}</button><button type="button" disabled={resolve.isPending} onClick={() => setClosing(false)}>Cancel</button></div>
-              {resolve.isError && <ErrorMessage error={resolve.error} />}
-            </form>
-          )}
-        </section>
-      )}
+        <OwnershipBar detail={detail} />
+      </header>
+      {detail.status === 'resolved' && <ClosedBanner detail={detail} />}
 
       {analysing && (
         <p className="notice" role="status">
@@ -100,9 +63,10 @@ function CaseView({ detail }: { detail: CaseDetail }) {
         </p>
       )}
 
+      {/* Left: what the customer wrote and what the team does with it. Right: the decisions. */}
       <div className="detail-grid">
         <div>
-          <Panel title="Complaint">
+          <Panel title="Complaint" className="complaint-letter">
             <dl className="facts">
               <dt>From</dt>
               <dd>
@@ -114,13 +78,16 @@ function CaseView({ detail }: { detail: CaseDetail }) {
             </dl>
             <p className="complaint-body">{detail.body}</p>
           </Panel>
+          <ResponseDrafts caseId={detail.id} closed={detail.status === 'resolved'} />
+          <Collaboration detail={detail} />
           <AuditTrail caseId={detail.id} />
         </div>
-        <div>
+        <aside aria-label="Decisions">
           <DeadlinesPanel detail={detail} />
           {!analysing && <SuggestionPanel detail={detail} canDecide={canDecide} />}
           {!analysing && <IndicatorsPanel detail={detail} canDecide={canDecide} />}
-        </div>
+          {canDecide && <CloseCasePanel caseId={detail.id} />}
+        </aside>
       </div>
     </>
   )

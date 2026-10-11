@@ -380,3 +380,5 @@ def test_close_case_records_outcome_and_removes_open_workload(
     events = [item for item in audit if item["action"] == "case_resolved"]
     assert len(events) == 1
     assert events[0]["new_value"]["note"] == payload["note"]
+    # Closed straight from review: the state machine's in_progress step is recorded too.
+    assert "review_started" in {item["action"] for item in audit}

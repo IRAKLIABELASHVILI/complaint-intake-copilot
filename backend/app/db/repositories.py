@@ -10,9 +10,10 @@ C# comparison: this plays the role of an EF Core global query filter
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import UTC, date, datetime, time
 from typing import Any
 
-from sqlalchemy import ColumnElement, Row, Select, Subquery, and_, case, func, not_, select
+from sqlalchemy import ColumnElement, Row, Select, Subquery, and_, case, func, not_, or_, select
 from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app.db.base import TenantScopedMixin
@@ -20,10 +21,14 @@ from app.db.models import (
     AuditEvent,
     Case,
     CaseAnalysis,
+    LoginSession,
     OutboxMessage,
+    ResponseDraft,
+    SavedView,
     User,
     VulnerabilityIndicator,
 )
+from app.domain.case_status import ANALYSING_STATUSES
 from app.domain.deadline_risk import DeadlineWindow
 from app.domain.enums import (
     AnalysisStatus,
@@ -80,6 +85,9 @@ class DeadlineCriterion:
 class CaseCriteria:
     """Which cases a list shows. Every field narrows the result; the defaults match everything."""
 
+    q: str | None = None
+    received_from: date | None = None
+    received_to: date | None = None
     status: CaseStatus | None = None
     assigned_to_user_id: uuid.UUID | None = None
     unassigned: bool = False
@@ -95,9 +103,6 @@ _DEADLINE_COLUMNS: dict[DeadlineKind, InstrumentedAttribute[Any]] = {
     DeadlineKind.SUMMARY_RESOLUTION: Case.src_deadline_at,
     DeadlineKind.FINAL_RESPONSE: Case.final_response_deadline_at,
 }
-
-# A case shows its AI suggestion only once the analysis is over (US-2.4, CaseService.review).
-_SUGGESTION_HIDDEN_STATUSES = (CaseStatus.NEW, CaseStatus.ANALYSING)
 
 
 def _is_open() -> ColumnElement[bool]:
@@ -219,6 +224,24 @@ class CaseRepository(TenantScopedRepository[Case]):
 
     def _conditions(self, criteria: CaseCriteria) -> Sequence[ColumnElement[bool]]:
         conditions: list[ColumnElement[bool]] = []
+        if criteria.q and criteria.q.strip():
+            term = criteria.q.strip()
+            conditions.append(
+                or_(
+                    *(
+                        column.icontains(term, autoescape=True)
+                        for column in (Case.reference, Case.subject, Case.body)
+                    )
+                )
+            )
+        if criteria.received_from:
+            conditions.append(
+                Case.received_at >= datetime.combine(criteria.received_from, time.min, UTC)
+            )
+        if criteria.received_to:
+            conditions.append(
+                Case.received_at <= datetime.combine(criteria.received_to, time.max, UTC)
+            )
         if criteria.status is not None:
             conditions.append(Case.status == criteria.status)
         if criteria.assigned_to_user_id is not None:
@@ -273,7 +296,7 @@ class CaseRepository(TenantScopedRepository[Case]):
         """A suggestion stands only where no person has decided yet, and the case shows it."""
         return (
             Case.final_category.is_(None),
-            Case.status.not_in(_SUGGESTION_HIDDEN_STATUSES),
+            Case.status.not_in(ANALYSING_STATUSES),
         )
 
     def _suggested(self, category: Category) -> ColumnElement[bool]:
@@ -301,6 +324,12 @@ class CaseRepository(TenantScopedRepository[Case]):
 
 class UserRepository(TenantScopedRepository[User]):
     model = User
+
+    def list_users(self) -> Sequence[User]:
+        return self.session.scalars(self._scoped(select(User)).order_by(User.display_name)).all()
+
+    def add(self, user: User) -> User:
+        return self._add(user)
 
     def display_names(self, user_ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, str]:
         if not user_ids:
@@ -423,3 +452,76 @@ class OutboxRepository:
             .with_for_update(skip_locked=True)
         )
         return self.session.scalars(statement).all()
+
+
+class AccountRepository:
+    """Authentication resolves identity before a tenant is known."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def by_email(self, email: str) -> User | None:
+        return self.session.scalar(
+            select(User).where(func.lower(User.email) == email.lower()).with_for_update()
+        )
+
+    def by_session(self, token_hash: str, now: datetime) -> User | None:
+        return self.session.scalar(
+            select(User)
+            .join(LoginSession, LoginSession.user_id == User.id)
+            .where(
+                LoginSession.token_hash == token_hash,
+                LoginSession.expires_at > now,
+                LoginSession.tenant_id == User.tenant_id,
+            )
+        )
+
+    def revoke(self, token_hash: str) -> None:
+        login = self.session.scalar(
+            select(LoginSession).where(LoginSession.token_hash == token_hash)
+        )
+        if login:
+            self.session.delete(login)
+
+
+class SavedViewRepository(TenantScopedRepository[SavedView]):
+    model = SavedView
+
+    def for_user(self, user_id: uuid.UUID) -> Sequence[SavedView]:
+        return self.session.scalars(
+            self._scoped(select(SavedView))
+            .where(SavedView.user_id == user_id)
+            .order_by(SavedView.created_at)
+        ).all()
+
+    def owned(self, view_id: uuid.UUID, user_id: uuid.UUID) -> SavedView | None:
+        return self.session.scalar(
+            self._scoped(select(SavedView)).where(
+                SavedView.id == view_id, SavedView.user_id == user_id
+            )
+        )
+
+    def add(self, view: SavedView) -> SavedView:
+        return self._add(view)
+
+
+class DraftRepository(TenantScopedRepository[ResponseDraft]):
+    model = ResponseDraft
+
+    def for_case(self, case_id: uuid.UUID) -> Sequence[ResponseDraft]:
+        return self.session.scalars(
+            self._scoped(select(ResponseDraft))
+            .where(ResponseDraft.case_id == case_id)
+            .order_by(ResponseDraft.created_at.desc())
+        ).all()
+
+    def locked(self, case_id: uuid.UUID, draft_id: uuid.UUID) -> ResponseDraft | None:
+        return self.session.scalar(
+            self._scoped(select(ResponseDraft))
+            .where(ResponseDraft.case_id == case_id, ResponseDraft.id == draft_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
+    def add(self, draft: ResponseDraft) -> ResponseDraft:
+        return self._add(draft)

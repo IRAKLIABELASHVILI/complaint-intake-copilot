@@ -7,12 +7,27 @@ import {
   describeFilters,
   filtersToSearch,
   parseFilters,
+  parseOffset,
   toApiQuery,
 } from './caseFilters'
 
 const parse = (query: string) => parseFilters(new URLSearchParams(query))
 
 describe('case filters in the URL', () => {
+  it.each(['Infinity', '1.5', '-25', 'NaN', '9007199254740992', 'invalid'])(
+    'ignores invalid pagination offset %s in both the queue and the back link',
+    (offset) => {
+      const listSearch = `status=in_progress&offset=${offset}`
+      expect(parseOffset(new URLSearchParams(listSearch))).toBe(0)
+      expect(backToList({ listSearch }).to).toBe('/cases?status=in_progress')
+    },
+  )
+
+  it('keeps a valid pagination offset', () => {
+    expect(parseOffset(new URLSearchParams('offset=50'))).toBe(50)
+    expect(parseOffset(new URLSearchParams())).toBe(0)
+  })
+
   it('reads every filter the dashboard links with', () => {
     const query =
       'status=in_progress&open=true&deadline=src&deadline_risk=at_risk&final_category=other' +

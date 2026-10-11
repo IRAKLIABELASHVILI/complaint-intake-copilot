@@ -1,11 +1,12 @@
 """Handler decisions on a case (US-3): accept or override suggestions, confirm or reject
-vulnerability indicators, add one the AI missed.
+vulnerability indicators, add one the AI missed, close the case.
 
 The AI never decides. A suggestion only becomes "final" when a person accepts or overrides it,
 and every decision is audited in the same transaction as the change (US-3.6).
 """
 
 import uuid
+from datetime import datetime
 from typing import Literal
 
 from sqlalchemy.orm import Session
@@ -18,6 +19,7 @@ from app.db.repositories import (
     CaseRepository,
     IndicatorRepository,
 )
+from app.domain.case_status import DECIDABLE_STATUSES, REVIEW_STATUSES
 from app.domain.enums import (
     AnalysisStatus,
     AuditSource,
@@ -27,18 +29,13 @@ from app.domain.enums import (
     IndicatorSource,
     IndicatorType,
     Priority,
+    ResolutionType,
 )
 from app.domain.evidence import quote_appears_in, squash_whitespace
 from app.domain.vulnerability import driver_for
 from app.logging_config import correlation_id_var
 from app.services.case_service import CaseNotFoundError
 from app.services.status_changes import change_status
-
-# Decisions are possible once the analysis is over, and until the case is resolved.
-DECIDABLE_STATUSES = frozenset(
-    {CaseStatus.AWAITING_REVIEW, CaseStatus.NEEDS_HUMAN_REVIEW, CaseStatus.IN_PROGRESS}
-)
-_REVIEW_STATUSES = (CaseStatus.AWAITING_REVIEW, CaseStatus.NEEDS_HUMAN_REVIEW)
 
 
 class CaseNotDecidableError(Exception):
@@ -140,6 +137,40 @@ class DecisionService:
         )
         return self._commit(case, changed=True)
 
+    def resolve(
+        self, case_id: uuid.UUID, resolution_type: ResolutionType, note: str, now: datetime
+    ) -> Case:
+        """Close the case: the deadline countdown stops. Closing it again changes nothing.
+
+        Closing a case still under review starts the work and ends it, so the status history
+        follows the state machine: -> in_progress -> resolved."""
+        case = self.cases.get_for_update(case_id)
+        if case is None:
+            raise CaseNotFoundError(case_id)
+        if case.status is CaseStatus.RESOLVED:
+            return case
+        if case.status not in DECIDABLE_STATUSES:
+            raise CaseNotDecidableError(case.status)
+        self._start_work(case)
+        case.resolved_at = now
+        case.resolution_type = resolution_type
+        change_status(
+            case,
+            CaseStatus.RESOLVED,
+            audit=self.audit,
+            action="case_resolved",
+            source=AuditSource.HANDLER,
+            actor_user_id=self.actor.id,
+            correlation_id=correlation_id_var.get(),
+            details={
+                "resolution_type": resolution_type.value,
+                "resolved_at": now.isoformat(),
+                "note": note,
+            },
+        )
+        self.session.commit()  # the closure and its audit events: one transaction
+        return case
+
     # --- helpers --------------------------------------------------------------------------------
 
     def _decidable_case(self, case_id: uuid.UUID) -> Case:
@@ -206,15 +237,18 @@ class DecisionService:
         """Repeating a decision that is already recorded changes nothing and audits nothing.
         The first real decision on a case under review starts the work on it: -> in_progress."""
         if changed:
-            if case.status in _REVIEW_STATUSES:
-                change_status(
-                    case,
-                    CaseStatus.IN_PROGRESS,
-                    audit=self.audit,
-                    action="review_started",
-                    source=AuditSource.HANDLER,
-                    actor_user_id=self.actor.id,
-                    correlation_id=correlation_id_var.get(),
-                )
+            self._start_work(case)
             self.session.commit()  # the change and its audit events: one transaction
         return case
+
+    def _start_work(self, case: Case) -> None:
+        if case.status in REVIEW_STATUSES:
+            change_status(
+                case,
+                CaseStatus.IN_PROGRESS,
+                audit=self.audit,
+                action="review_started",
+                source=AuditSource.HANDLER,
+                actor_user_id=self.actor.id,
+                correlation_id=correlation_id_var.get(),
+            )

@@ -24,6 +24,7 @@ from app.db.repositories import (
     UserRepository,
 )
 from app.domain.business_calendar import BusinessCalendar, HolidayDataUnavailableError
+from app.domain.case_status import ANALYSING_STATUSES
 from app.domain.deadline_risk import deadline_window
 from app.domain.deadlines import (
     CaseDeadlines,
@@ -31,7 +32,7 @@ from app.domain.deadlines import (
     calculate_deadlines,
     track_deadlines,
 )
-from app.domain.enums import AnalysisStatus, AuditSource, CaseStatus, ResolutionType
+from app.domain.enums import AnalysisStatus, AuditSource, CaseStatus
 from app.logging_config import correlation_id_var
 from app.messaging.outbox import analysis_job_message
 from app.schemas.cases import CaseCreate, CaseFilters
@@ -44,7 +45,7 @@ class CaseNotFoundError(Exception):
 
 
 class AssignmentConflictError(Exception):
-    pass
+    """An "assign to me" on a case that a colleague already has, or that is resolved."""
 
 
 class AssigneeNotFoundError(Exception):
@@ -58,9 +59,6 @@ class CaseReview:
     suggestion: CaseAnalysis | None
     review_reason: str | None
     indicators: tuple[VulnerabilityIndicator, ...]
-
-
-_NOT_YET_ANALYSED = (CaseStatus.NEW, CaseStatus.ANALYSING)
 
 
 @dataclass(frozen=True)
@@ -129,6 +127,9 @@ class CaseService:
             window = deadline_window(filters.deadline_risk, now, self.calendar)
             deadline = DeadlineCriterion(filters.deadline, window)
         criteria = CaseCriteria(
+            q=filters.q,
+            received_from=filters.received_from,
+            received_to=filters.received_to,
             status=filters.status,
             assigned_to_user_id=filters.assigned_to_user_id,
             unassigned=filters.unassigned,
@@ -162,7 +163,7 @@ class CaseService:
     def review(self, case: Case) -> CaseReview:
         """US-2.4: nothing is shown while the analysis is running. A failed attempt is never
         shown as a suggestion: only a COMPLETED analysis is (US-2.5)."""
-        if case.status in _NOT_YET_ANALYSED:
+        if case.status in ANALYSING_STATUSES:
             return CaseReview(None, None, ())
         reason = None
         if case.status is CaseStatus.NEEDS_HUMAN_REVIEW:
@@ -182,44 +183,22 @@ class CaseService:
             raise CaseNotFoundError(case_id)
         return case
 
-    def resolve(
-        self, case_id: uuid.UUID, resolution_type: ResolutionType, note: str, now: datetime
-    ) -> Case:
-        case = self.cases.get_for_update(case_id)
-        if case is None:
-            raise CaseNotFoundError(case_id)
-        if case.status == CaseStatus.RESOLVED:
-            return case
-        if case.status in _NOT_YET_ANALYSED:
-            raise AssignmentConflictError("Wait for analysis to finish before closing this case.")
-        old_status = case.status
-        case.status = CaseStatus.RESOLVED
-        case.resolved_at = now
-        case.resolution_type = resolution_type
-        self._record(
-            case,
-            action="case_resolved",
-            source=AuditSource.HANDLER,
-            field="status",
-            old_value=old_status.value,
-            new_value={
-                "status": "resolved",
-                "resolution_type": resolution_type.value,
-                "resolved_at": now.isoformat(),
-                "note": note,
-            },
+    def assignee_names(self, cases: Sequence[Case]) -> dict[uuid.UUID, str]:
+        """Display names of the people the cases are assigned to, in one query."""
+        return self.users.display_names(
+            [case.assigned_to_user_id for case in cases if case.assigned_to_user_id is not None]
         )
-        self.session.commit()
-        return case
 
     def assign(
         self, case_id: uuid.UUID, assignee_id: uuid.UUID | None, *, only_if_unassigned: bool = False
     ) -> Case:
+        """`only_if_unassigned` is "assign to me": it must not take a case from a colleague who
+        claimed it a moment earlier, or reopen work on a closed one."""
         case = self.cases.get_for_update(case_id)
         if case is None:
             raise CaseNotFoundError(case_id)
         if only_if_unassigned and (
-            case.status == CaseStatus.RESOLVED
+            case.status is CaseStatus.RESOLVED
             or case.assigned_to_user_id not in (None, assignee_id)
         ):
             raise AssignmentConflictError(

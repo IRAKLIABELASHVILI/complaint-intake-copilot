@@ -7,7 +7,7 @@ Pydantic validates the types at startup, so a bad value fails fast instead of at
 from functools import lru_cache
 from typing import Literal, Self
 
-from pydantic import SecretStr, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 LlmProviderName = Literal["fake", "openai", "azure_openai"]
@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     rabbitmq_url: str = "amqp://cic:cic@127.0.0.1:5672/%2F"
     log_level: str = "INFO"
     environment: str = "local"
+    allow_demo_tokens: bool = False
 
     # The fake provider needs no key, so the demo and the tests run offline and free.
     llm_provider: LlmProviderName = "fake"
@@ -30,9 +31,16 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr | None = None  # SecretStr: never printed in logs or reprs
     llm_timeout_seconds: float = 30.0
 
+    @field_validator("llm_base_url", mode="before")
+    @classmethod
+    def empty_base_url(cls, value: str | None) -> str | None:
+        return value or None
+
     @model_validator(mode="after")
     def real_provider_needs_a_key(self) -> Self:
-        if self.llm_provider != "fake" and self.llm_api_key is None:
+        if self.llm_provider != "fake" and (
+            self.llm_api_key is None or not self.llm_api_key.get_secret_value()
+        ):
             raise ValueError(f"LLM_API_KEY is required when LLM_PROVIDER={self.llm_provider}")
         return self
 

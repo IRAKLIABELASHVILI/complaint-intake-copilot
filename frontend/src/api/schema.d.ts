@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign In */
+        post: operations["sign_in_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign Out */
+        post: operations["sign_out_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases": {
         parameters: {
             query?: never;
@@ -93,6 +127,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/cases/{case_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Comment */
+        post: operations["comment_cases__case_id__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Drafts */
+        get: operations["drafts_cases__case_id__drafts_get"];
+        put?: never;
+        /** Create Draft */
+        post: operations["create_draft_cases__case_id__drafts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/drafts/{draft_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Draft */
+        put: operations["update_draft_cases__case_id__drafts__draft_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/cases/{case_id}/handoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Handoff */
+        post: operations["handoff_cases__case_id__handoff_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/cases/{case_id}/priority": {
         parameters: {
             query?: never;
@@ -122,7 +225,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Resolve Case */
+        /**
+         * Resolve Case
+         * @description Record the outcome and stop the countdown. It does not send anything to the customer.
+         */
         post: operations["resolve_case_cases__case_id__resolve_post"];
         delete?: never;
         options?: never;
@@ -250,10 +356,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Notifications */
+        get: operations["notifications_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/saved-views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Saved Views */
+        get: operations["saved_views_saved_views_get"];
+        put?: never;
+        /** Save View */
+        post: operations["save_view_saved_views_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/saved-views/{view_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete View */
+        delete: operations["delete_view_saved_views__view_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Users */
+        get: operations["list_users_users_get"];
+        put?: never;
+        /** Create User */
+        post: operations["create_user_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AccountCreate */
+        AccountCreate: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /**
+             * Is Admin
+             * @default false
+             */
+            is_admin: boolean;
+            /** Password */
+            password: string;
+            role: components["schemas"]["UserRole"];
+        };
         /** AssigneeCountRead */
         AssigneeCountRead: {
             /** Display Name */
@@ -300,6 +494,7 @@ export interface components {
             assigned_to_user_id: string | null;
             /**
              * Only If Unassigned
+             * @description Refuse (409) if a colleague has the case, or it is resolved
              * @default false
              */
             only_if_unassigned: boolean;
@@ -327,6 +522,54 @@ export interface components {
             sender_name?: string | null;
             /** Subject */
             subject: string;
+        };
+        /**
+         * CaseFilters
+         * @description Query string filters of the case list. Each one narrows the list; they combine with AND.
+         *
+         *     The dashboard (US-5.4) links every number to the list with the matching filters.
+         */
+        CaseFilters: {
+            /**
+             * Assigned To User Id
+             * @description Cases assigned to this user
+             */
+            assigned_to_user_id?: string | null;
+            /** @description Which deadline `deadline_risk` applies to */
+            deadline?: components["schemas"]["DeadlineKind"] | null;
+            /** @description at_risk: 2 business days or fewer left; overdue: past the deadline. Only open cases match. */
+            deadline_risk?: components["schemas"]["DeadlineRisk"] | null;
+            /** @description Decided by a person */
+            final_category?: components["schemas"]["Category"] | null;
+            /**
+             * Open
+             * @description Only cases that are not resolved
+             * @default false
+             */
+            open: boolean;
+            /** Q */
+            q?: string | null;
+            /** Received From */
+            received_from?: string | null;
+            /** Received To */
+            received_to?: string | null;
+            status?: components["schemas"]["CaseStatus"] | null;
+            /** @description Suggested by the AI, on cases no person has categorised yet */
+            suggested_category?: components["schemas"]["Category"] | null;
+            /**
+             * Unassigned
+             * @description Cases assigned to nobody
+             * @default false
+             */
+            unassigned: boolean;
+            /**
+             * Uncategorised
+             * @description Cases with no decided and no suggested category yet
+             * @default false
+             */
+            uncategorised: boolean;
+            /** @description Cases with a confirmed indicator of this type */
+            vulnerability?: components["schemas"]["IndicatorType"] | null;
         };
         /** CaseList */
         CaseList: {
@@ -400,7 +643,10 @@ export interface components {
         };
         /** CaseResolve */
         CaseResolve: {
-            /** Note */
+            /**
+             * Note
+             * @description How the complaint was resolved
+             */
             note: string;
             resolution_type: components["schemas"]["ResolutionType"];
         };
@@ -472,7 +718,10 @@ export interface components {
         };
         /** DashboardRead */
         DashboardRead: {
-            /** Assignments */
+            /**
+             * Assignments
+             * @description Open cases per assignee, busiest first; user_id null = unassigned
+             */
             assignments: components["schemas"]["AssigneeCountRead"][];
             /** At Risk Business Days */
             at_risk_business_days: number;
@@ -521,6 +770,27 @@ export interface components {
          * @enum {string}
          */
         DeadlineKind: "src" | "final_response";
+        /** DeadlineNotice */
+        DeadlineNotice: {
+            /**
+             * Case Id
+             * Format: uuid
+             */
+            case_id: string;
+            /** Deadline */
+            deadline: string;
+            /**
+             * Deadline At
+             * Format: date-time
+             */
+            deadline_at: string;
+            /** Overdue */
+            overdue: boolean;
+            /** Reference */
+            reference: string;
+            /** Subject */
+            subject: string;
+        };
         /** DeadlineProgressRead */
         DeadlineProgressRead: {
             /**
@@ -557,10 +827,55 @@ export interface components {
             /** @description Null once the case is resolved */
             src: components["schemas"]["DeadlineProgressRead"] | null;
         };
+        /** DraftRead */
+        DraftRead: {
+            /** Approved At */
+            approved_at: string | null;
+            /** Approved By User Id */
+            approved_by_user_id: string | null;
+            /** Body */
+            body: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Provider */
+            provider: string;
+            /** Version */
+            version: number;
+        };
+        /** DraftUpdate */
+        DraftUpdate: {
+            /**
+             * Approve
+             * @default false
+             */
+            approve: boolean;
+            /** Body */
+            body: string;
+            /** Version */
+            version: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HandoffCreate */
+        HandoffCreate: {
+            /**
+             * Assigned To User Id
+             * Format: uuid
+             */
+            assigned_to_user_id: string;
+            /** Note */
+            note: string;
         };
         /**
          * IndicatorCreate
@@ -612,6 +927,27 @@ export interface components {
          * @enum {string}
          */
         IndicatorType: "physical_illness" | "mental_health" | "disability" | "bereavement" | "relationship_breakdown" | "job_loss" | "financial_hardship" | "low_capability";
+        /** LoginRead */
+        LoginRead: {
+            /** Token */
+            token: string;
+        };
+        /**
+         * LoginRequest
+         * @description Not EmailStr: signing in only looks the address up. A format rule here would turn a
+         *     wrong address into a 422 with validation details instead of the usual 401.
+         */
+        LoginRequest: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+        };
+        /** NoteCreate */
+        NoteCreate: {
+            /** Note */
+            note: string;
+        };
         /**
          * Priority
          * @enum {string}
@@ -656,6 +992,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Is Admin
+             * @default false
+             */
+            is_admin: boolean;
             role: components["schemas"]["UserRole"];
             /**
              * Tenant Id
@@ -680,6 +1021,23 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** ViewCreate */
+        ViewCreate: {
+            filters: components["schemas"]["CaseFilters"];
+            /** Name */
+            name: string;
+        };
+        /** ViewRead */
+        ViewRead: {
+            filters: components["schemas"]["CaseFilters"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
         };
         /** VulnerabilityCountRead */
         VulnerabilityCountRead: {
@@ -706,12 +1064,68 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    sign_in_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sign_out_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_cases_cases_get: {
         parameters: {
             query?: {
-                assigned_to_user_id?: string | null;
-                unassigned?: boolean;
+                q?: string | null;
+                received_from?: string | null;
+                received_to?: string | null;
                 status?: components["schemas"]["CaseStatus"] | null;
+                /** @description Cases assigned to this user */
+                assigned_to_user_id?: string | null;
+                /** @description Cases assigned to nobody */
+                unassigned?: boolean;
                 /** @description Only cases that are not resolved */
                 open?: boolean;
                 /** @description Which deadline `deadline_risk` applies to */
@@ -924,6 +1338,172 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CaseRead"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    comment_cases__case_id__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NoteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drafts_cases__case_id__drafts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_draft_cases__case_id__drafts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_draft_cases__case_id__drafts__draft_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    handoff_cases__case_id__handoff_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                case_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandoffCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -1171,6 +1751,161 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserRead"];
+                };
+            };
+        };
+    };
+    notifications_notifications_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeadlineNotice"][];
+                };
+            };
+        };
+    };
+    saved_views_saved_views_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewRead"][];
+                };
+            };
+        };
+    };
+    save_view_saved_views_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ViewCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_view_saved_views__view_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                view_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_users_users_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"][];
+                };
+            };
+        };
+    };
+    create_user_users_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

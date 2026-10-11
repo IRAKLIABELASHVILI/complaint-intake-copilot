@@ -193,3 +193,31 @@ def test_composed_text_splits_back_into_subject_and_body() -> None:
         "A subject",
         "Line one.\n\nLine two.",
     )
+
+
+def test_response_draft_sends_redacted_complaint_and_validates_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.db.models import Case
+    from app.services import drafts
+
+    sent: list[str] = []
+
+    def responder(request: httpx.Request) -> httpx.Response:
+        sent.append(request.content.decode())
+        return chat_response(json.dumps({"body": "Thank you. [Handler to complete]"}))
+
+    provider = provider_with(responder)
+    monkeypatch.setattr(drafts, "build_provider", lambda _: provider)
+    case = Case(
+        subject="Jane Doe complaint", body="Contact jane@example.com", sender_name="Jane Doe"
+    )
+    body, source = drafts.generate_draft(case)
+    assert body == "Thank you. [Handler to complete]" and source == "openai"
+    assert "jane@example.com" not in sent[0] and "Jane Doe" not in sent[0]
+    assert "[EMAIL_1]" in sent[0]
+
+    invalid = provider_with(lambda _: chat_response('{"body": "   "}'))
+    monkeypatch.setattr(drafts, "build_provider", lambda _: invalid)
+    with pytest.raises(ProviderRejectedError):
+        drafts.generate_draft(case)

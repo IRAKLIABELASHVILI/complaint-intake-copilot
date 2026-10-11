@@ -11,6 +11,7 @@ import type {
   IndicatorDecision,
   IndicatorType,
   Priority,
+  ResolutionType,
   VulnerabilityDriver,
 } from '../api/types'
 
@@ -74,6 +75,12 @@ export const AUDIT_SOURCE_LABELS: Record<AuditEvent['source'], string> = {
 }
 
 export const DEADLINE_LABELS: Record<DeadlineKind, string> = {
+  src: 'Summary resolution',
+  final_response: 'Final response',
+}
+
+/** A case is closed by the response that met one of its two deadlines. */
+export const RESOLUTION_LABELS: Record<ResolutionType, string> = {
   src: 'Summary resolution',
   final_response: 'Final response',
 }

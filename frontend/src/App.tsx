@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router'
 
+import { AccountsPage } from './auth/AccountsPage'
 import { RequireAuth } from './auth/RequireAuth'
 import { SignInPage } from './auth/SignInPage'
 import { CaseDetailPage } from './cases/CaseDetailPage'
@@ -19,6 +20,7 @@ export function App() {
           </RequireAuth>
         }
       >
+        <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/cases" element={<CaseListPage />} />
         <Route path="/cases/new" element={<NewCasePage />} />
         <Route path="/cases/:caseId" element={<CaseDetailPage />} />

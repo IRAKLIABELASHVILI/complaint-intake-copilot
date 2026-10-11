@@ -5,6 +5,10 @@ See docs/data-model.md for the diagram.
 
 from app.domain.enums import CaseStatus
 
+ANALYSING_STATUSES = frozenset({CaseStatus.NEW, CaseStatus.ANALYSING})
+REVIEW_STATUSES = frozenset({CaseStatus.AWAITING_REVIEW, CaseStatus.NEEDS_HUMAN_REVIEW})
+DECIDABLE_STATUSES = REVIEW_STATUSES | {CaseStatus.IN_PROGRESS}
+
 ALLOWED_TRANSITIONS: dict[CaseStatus, frozenset[CaseStatus]] = {
     CaseStatus.NEW: frozenset({CaseStatus.ANALYSING}),
     CaseStatus.ANALYSING: frozenset({CaseStatus.AWAITING_REVIEW, CaseStatus.NEEDS_HUMAN_REVIEW}),

@@ -190,3 +190,10 @@ def analyse(session_factory: sessionmaker[Session]) -> Callable[..., None]:
         )
 
     return _analyse
+
+
+@pytest.fixture(autouse=True)
+def legacy_demo_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "allow_demo_tokens", True)

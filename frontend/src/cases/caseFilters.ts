@@ -14,6 +14,9 @@ import {
 } from '../shared/labels'
 
 export interface CaseFilters {
+  q: string | null
+  received_from: string | null
+  received_to: string | null
   status: CaseStatus | null
   assigned_to_user_id: string | null
   unassigned: boolean
@@ -27,6 +30,7 @@ export interface CaseFilters {
 }
 
 export const NO_FILTERS: CaseFilters = {
+  q: null, received_from: null, received_to: null,
   status: null,
   assigned_to_user_id: null,
   unassigned: false,
@@ -39,14 +43,35 @@ export const NO_FILTERS: CaseFilters = {
   vulnerability: null,
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function parseUuid(value: string | null): string | null {
+  return value !== null && UUID.test(value) ? value : null
+}
+
+/** Invalid bookmarks return to the first page instead of sending an invalid API offset. */
+export function parseOffset(params: URLSearchParams): number {
+  const offset = Number(params.get('offset'))
+  return Number.isSafeInteger(offset) && offset >= 0 ? offset : 0
+}
+
+function parseDate(value: string | null): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const date = new Date(value)
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : null
+}
+
 /** Reads the filters from a URL. Unknown values are ignored, never sent to the API. */
 export function parseFilters(params: URLSearchParams): CaseFilters {
   const deadline = parseCode(DEADLINE_LABELS, params.get('deadline'))
   const risk = parseCode(DEADLINE_RISK_LABELS, params.get('deadline_risk'))
   const bothDeadlineParts = deadline !== null && risk !== null // the API needs both or neither
   return {
+    q: params.get('q')?.trim().slice(0, 200) || null,
+    received_from: parseDate(params.get('received_from')),
+    received_to: parseDate(params.get('received_to')),
     status: parseCode(STATUS_LABELS, params.get('status')),
-    assigned_to_user_id: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.get('assigned_to_user_id') ?? '') ? params.get('assigned_to_user_id') : null,
+    assigned_to_user_id: parseUuid(params.get('assigned_to_user_id')),
     unassigned: params.get('unassigned') === 'true',
     open: params.get('open') === 'true',
     deadline: bothDeadlineParts ? deadline : null,
@@ -77,6 +102,9 @@ export function caseListLink(filters: Partial<CaseFilters>): string {
 /** The filters as the API's query: no nulls, no "false". */
 export function toApiQuery(filters: CaseFilters) {
   return {
+    q: filters.q ?? undefined,
+    received_from: filters.received_from ?? undefined,
+    received_to: filters.received_to ?? undefined,
     status: filters.status ?? undefined,
     assigned_to_user_id: filters.assigned_to_user_id ?? undefined,
     unassigned: filters.unassigned || undefined,
@@ -93,6 +121,9 @@ export function toApiQuery(filters: CaseFilters) {
 /** Plain-English lines for every filter except status, which has its own drop-down. */
 export function describeFilters(filters: CaseFilters): string[] {
   const lines: string[] = []
+  if (filters.q) lines.push(`Search: ${filters.q}`)
+  if (filters.received_from) lines.push(`Received from ${filters.received_from} (UTC)`)
+  if (filters.received_to) lines.push(`Received through ${filters.received_to} (UTC)`)
   if (filters.assigned_to_user_id) lines.push('Assigned to selected colleague')
   if (filters.unassigned) lines.push('Unassigned cases')
   if (filters.open) lines.push('Open cases only')
@@ -125,7 +156,7 @@ export function backToList(state: unknown): { to: string; label: string } {
   const listSearch = (state as Partial<FromList> | null)?.listSearch
   if (typeof listSearch !== 'string') return { to: '/cases', label: '← All cases' }
   const params = new URLSearchParams(listSearch)
-  const offset = Math.max(0, Number(params.get('offset')) || 0)
+  const offset = parseOffset(params)
   const search = filtersToSearch(parseFilters(params), offset).toString()
   return search
     ? { to: `/cases?${search}`, label: '← Back to the list' }

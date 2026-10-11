@@ -6,7 +6,7 @@ OpenAPI schema, which milestone 6 turns into a typed TypeScript client.
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import (
@@ -65,7 +65,16 @@ class CaseAssign(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     assigned_to_user_id: uuid.UUID | None
-    only_if_unassigned: bool = False
+    only_if_unassigned: bool = Field(
+        default=False, description="Refuse (409) if a colleague has the case, or it is resolved"
+    )
+
+
+class CaseResolve(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    resolution_type: ResolutionType
+    note: str = Field(min_length=1, max_length=4000, description="How the complaint was resolved")
 
 
 class CategoryDecision(BaseModel):
@@ -195,15 +204,19 @@ class CaseSummary(BaseModel):
 
 
 class CaseFilters(BaseModel):
-    assigned_to_user_id: uuid.UUID | None = None
-    unassigned: bool = False
-
     """Query string filters of the case list. Each one narrows the list; they combine with AND.
 
     The dashboard (US-5.4) links every number to the list with the matching filters.
     """
 
+    q: str | None = Field(default=None, max_length=200)
+    received_from: date | None = None
+    received_to: date | None = None
     status: CaseStatus | None = None
+    assigned_to_user_id: uuid.UUID | None = Field(
+        default=None, description="Cases assigned to this user"
+    )
+    unassigned: bool = Field(default=False, description="Cases assigned to nobody")
     open_only: bool = Field(
         default=False, alias="open", description="Only cases that are not resolved"
     )
@@ -228,6 +241,8 @@ class CaseFilters(BaseModel):
 
     @model_validator(mode="after")
     def deadline_needs_both_parts(self) -> "CaseFilters":
+        if self.received_from and self.received_to and self.received_from > self.received_to:
+            raise ValueError("Start date must be on or before end date")
         if (self.deadline is None) != (self.deadline_risk is None):
             raise ValueError("deadline and deadline_risk must be given together")
         return self
@@ -260,17 +275,3 @@ class AuditEventRead(BaseModel):
     actor_user_id: uuid.UUID | None
     correlation_id: str | None
     created_at: datetime
-
-
-class CaseResolve(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    resolution_type: ResolutionType
-    note: str = Field(min_length=1, max_length=4000)
-
-    @model_validator(mode="after")
-    def require_note(self) -> "CaseResolve":
-        self.note = self.note.strip()
-        if not self.note:
-            raise ValueError("A resolution note is required")
-        return self

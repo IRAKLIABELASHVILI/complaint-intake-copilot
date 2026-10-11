@@ -1,12 +1,10 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 
 from app.api.deps import DashboardServiceDep, NowDep
-from app.domain.business_calendar import HolidayDataUnavailableError
+from app.api.errors import CALENDAR_OUT_OF_DATE
 from app.schemas.dashboard import DashboardRead
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
-
-CALENDAR_OUT_OF_DATE = "Bank holiday data does not cover the coming days. Refresh it."
 
 
 @router.get(
@@ -20,9 +18,5 @@ def get_dashboard(service: DashboardServiceDep, now: NowDep) -> DashboardRead:
     Team leads only, and for their own tenant only. Every number links to `GET /cases` with the
     matching filters.
     """
-    try:
-        dashboard = service.dashboard(now)
-    except HolidayDataUnavailableError:
-        # Never guess a business day (US-4): say the reference data needs refreshing instead.
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, CALENDAR_OUT_OF_DATE) from None
+    dashboard = service.dashboard(now)
     return DashboardRead.model_validate(dashboard)

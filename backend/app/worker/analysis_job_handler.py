@@ -228,7 +228,7 @@ class AnalysisJobHandler:
             source=AuditSource.SYSTEM,
             actor_user_id=None,
             correlation_id=job.correlation_id,
-            reason=reason,
+            details=None if reason is None else {"reason": reason},
         )
 
     def _mark_processed(

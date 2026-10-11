@@ -1,10 +1,11 @@
 """The one way to change a case's status: check the state machine, change it, audit it.
 
-Used by both the worker (system changes) and the case service (handler decisions), so every
+Used by both the worker (system changes) and the decision service (handler decisions), so every
 status change is validated and audited the same way, in the caller's transaction (US-3.6).
 """
 
 import uuid
+from collections.abc import Mapping
 
 from app.db.models import AuditEvent, Case
 from app.db.repositories import AuditRepository
@@ -21,18 +22,14 @@ def change_status(
     source: AuditSource,
     actor_user_id: uuid.UUID | None,
     correlation_id: str | None,
-    reason: str | None = None,
+    details: Mapping[str, object] | None = None,
 ) -> None:
+    """`details` (a failure reason, a resolution note) are audited next to the new status."""
     ensure_transition(case.status, new_status)  # raises InvalidStatusTransitionError
     old_status = case.status
     case.status = new_status
     new_value: object = (
-        new_status.value
-        if reason is None
-        else {
-            "status": new_status.value,
-            "reason": reason,
-        }
+        new_status.value if details is None else {"status": new_status.value, **details}
     )
     audit.add(
         AuditEvent(

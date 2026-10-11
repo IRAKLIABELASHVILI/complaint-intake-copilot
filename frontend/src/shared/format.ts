@@ -38,3 +38,13 @@ function safely(format: Intl.DateTimeFormat, iso: string): string {
 export function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? '' : 's'}`
 }
+
+/** "Sam Handler" → "SH": for avatars. */
+export function initials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+}

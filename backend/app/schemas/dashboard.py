@@ -41,7 +41,6 @@ class AssigneeCountRead(BaseModel):
 class DashboardRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    assignments: list[AssigneeCountRead]
     generated_at: datetime
     open_cases: int
     at_risk_business_days: int
@@ -56,4 +55,7 @@ class DashboardRead(BaseModel):
     uncategorised: int = Field(description="Open cases with no decided or suggested category")
     vulnerabilities: list[VulnerabilityCountRead] = Field(
         description="Every indicator type, confirmed indicators only"
+    )
+    assignments: list[AssigneeCountRead] = Field(
+        description="Open cases per assignee, busiest first; user_id null = unassigned"
     )

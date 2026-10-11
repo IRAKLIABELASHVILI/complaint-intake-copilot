@@ -60,6 +60,11 @@ export function unwrap<T>(result: { data?: T; error?: unknown; response: Respons
   throw new ApiError(status, describeError(status, detail, fieldErrors), fieldErrors)
 }
 
+/** For "204 No Content" answers: nothing to return, but an error still throws an ApiError. */
+export function succeed(result: { error?: unknown; response: Response }): void {
+  if (!result.response.ok) unwrap(result)
+}
+
 /** FastAPI validation error: { loc: ["body", "field"], msg: "..." }. loc[0] says where the field
  * was (body, query, path); the rest is the field itself, which may well be called "body". */
 function toFieldError(item: { loc?: unknown[]; msg?: string }): FieldError {

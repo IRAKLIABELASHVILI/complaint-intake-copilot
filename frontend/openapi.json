@@ -1,6 +1,44 @@
 {
   "components": {
     "schemas": {
+      "AccountCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "is_admin": {
+            "default": false,
+            "title": "Is Admin",
+            "type": "boolean"
+          },
+          "password": {
+            "maxLength": 256,
+            "minLength": 12,
+            "title": "Password",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          }
+        },
+        "required": [
+          "email",
+          "display_name",
+          "password",
+          "role"
+        ],
+        "title": "AccountCreate",
+        "type": "object"
+      },
       "AssigneeCountRead": {
         "properties": {
           "display_name": {
@@ -145,6 +183,7 @@
           },
           "only_if_unassigned": {
             "default": false,
+            "description": "Refuse (409) if a colleague has the case, or it is resolved",
             "title": "Only If Unassigned",
             "type": "boolean"
           }
@@ -220,6 +259,145 @@
           "sender_email"
         ],
         "title": "CaseCreate",
+        "type": "object"
+      },
+      "CaseFilters": {
+        "description": "Query string filters of the case list. Each one narrows the list; they combine with AND.\n\nThe dashboard (US-5.4) links every number to the list with the matching filters.",
+        "properties": {
+          "assigned_to_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cases assigned to this user",
+            "title": "Assigned To User Id"
+          },
+          "deadline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeadlineKind"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which deadline `deadline_risk` applies to"
+          },
+          "deadline_risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeadlineRisk"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "at_risk: 2 business days or fewer left; overdue: past the deadline. Only open cases match."
+          },
+          "final_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Decided by a person"
+          },
+          "open": {
+            "default": false,
+            "description": "Only cases that are not resolved",
+            "title": "Open",
+            "type": "boolean"
+          },
+          "q": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q"
+          },
+          "received_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received From"
+          },
+          "received_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received To"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggested_category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Suggested by the AI, on cases no person has categorised yet"
+          },
+          "unassigned": {
+            "default": false,
+            "description": "Cases assigned to nobody",
+            "title": "Unassigned",
+            "type": "boolean"
+          },
+          "uncategorised": {
+            "default": false,
+            "description": "Cases with no decided and no suggested category yet",
+            "title": "Uncategorised",
+            "type": "boolean"
+          },
+          "vulnerability": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IndicatorType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cases with a confirmed indicator of this type"
+          }
+        },
+        "title": "CaseFilters",
         "type": "object"
       },
       "CaseList": {
@@ -473,6 +651,7 @@
         "additionalProperties": false,
         "properties": {
           "note": {
+            "description": "How the complaint was resolved",
             "maxLength": 4000,
             "minLength": 1,
             "title": "Note",
@@ -662,6 +841,7 @@
       "DashboardRead": {
         "properties": {
           "assignments": {
+            "description": "Open cases per assignee, busiest first; user_id null = unassigned",
             "items": {
               "$ref": "#/components/schemas/AssigneeCountRead"
             },
@@ -712,7 +892,6 @@
           }
         },
         "required": [
-          "assignments",
           "generated_at",
           "open_cases",
           "at_risk_business_days",
@@ -720,7 +899,8 @@
           "final_response",
           "categories",
           "uncategorised",
-          "vulnerabilities"
+          "vulnerabilities",
+          "assignments"
         ],
         "title": "DashboardRead",
         "type": "object"
@@ -752,6 +932,46 @@
         ],
         "title": "DeadlineKind",
         "type": "string"
+      },
+      "DeadlineNotice": {
+        "properties": {
+          "case_id": {
+            "format": "uuid",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "deadline": {
+            "title": "Deadline",
+            "type": "string"
+          },
+          "deadline_at": {
+            "format": "date-time",
+            "title": "Deadline At",
+            "type": "string"
+          },
+          "overdue": {
+            "title": "Overdue",
+            "type": "boolean"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "case_id",
+          "reference",
+          "subject",
+          "deadline",
+          "deadline_at",
+          "overdue"
+        ],
+        "title": "DeadlineNotice",
+        "type": "object"
       },
       "DeadlineProgressRead": {
         "properties": {
@@ -833,6 +1053,94 @@
         "title": "DeadlineTrackingRead",
         "type": "object"
       },
+      "DraftRead": {
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By User Id"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "body",
+          "provider",
+          "created_at",
+          "approved_at",
+          "approved_by_user_id",
+          "version"
+        ],
+        "title": "DraftRead",
+        "type": "object"
+      },
+      "DraftUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "approve": {
+            "default": false,
+            "title": "Approve",
+            "type": "boolean"
+          },
+          "body": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "body",
+          "version"
+        ],
+        "title": "DraftUpdate",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -844,6 +1152,28 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HandoffCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "assigned_to_user_id": {
+            "format": "uuid",
+            "title": "Assigned To User Id",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note",
+          "assigned_to_user_id"
+        ],
+        "title": "HandoffCreate",
         "type": "object"
       },
       "IndicatorCreate": {
@@ -977,6 +1307,59 @@
         "title": "IndicatorType",
         "type": "string"
       },
+      "LoginRead": {
+        "properties": {
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "LoginRead",
+        "type": "object"
+      },
+      "LoginRequest": {
+        "additionalProperties": false,
+        "description": "Not EmailStr: signing in only looks the address up. A format rule here would turn a\nwrong address into a 422 with validation details instead of the usual 401.",
+        "properties": {
+          "email": {
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Email",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest",
+        "type": "object"
+      },
+      "NoteCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "title": "NoteCreate",
+        "type": "object"
+      },
       "Priority": {
         "enum": [
           "low",
@@ -1082,6 +1465,11 @@
             "title": "Id",
             "type": "string"
           },
+          "is_admin": {
+            "default": false,
+            "title": "Is Admin",
+            "type": "boolean"
+          },
           "role": {
             "$ref": "#/components/schemas/UserRole"
           },
@@ -1149,6 +1537,52 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "ViewCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "filters": {
+            "$ref": "#/components/schemas/CaseFilters"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "filters"
+        ],
+        "title": "ViewCreate",
+        "type": "object"
+      },
+      "ViewRead": {
+        "additionalProperties": false,
+        "properties": {
+          "filters": {
+            "$ref": "#/components/schemas/CaseFilters"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "filters",
+          "id"
+        ],
+        "title": "ViewRead",
+        "type": "object"
+      },
       "VulnerabilityCountRead": {
         "properties": {
           "cases": {
@@ -1197,35 +1631,119 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/auth/login": {
+      "post": {
+        "operationId": "sign_in_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sign In",
+        "tags": [
+          "accounts"
+        ]
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "sign_out_auth_logout_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Sign Out",
+        "tags": [
+          "accounts"
+        ]
+      }
+    },
     "/cases": {
       "get": {
         "operationId": "list_cases_cases_get",
         "parameters": [
           {
             "in": "query",
-            "name": "assigned_to_user_id",
+            "name": "q",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "format": "uuid",
+                  "maxLength": 200,
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Assigned To User Id"
+              "title": "Q"
             }
           },
           {
             "in": "query",
-            "name": "unassigned",
+            "name": "received_from",
             "required": false,
             "schema": {
-              "default": false,
-              "title": "Unassigned",
-              "type": "boolean"
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Received From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "received_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Received To"
             }
           },
           {
@@ -1242,6 +1760,37 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "description": "Cases assigned to this user",
+            "in": "query",
+            "name": "assigned_to_user_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cases assigned to this user",
+              "title": "Assigned To User Id"
+            }
+          },
+          {
+            "description": "Cases assigned to nobody",
+            "in": "query",
+            "name": "unassigned",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Cases assigned to nobody",
+              "title": "Unassigned",
+              "type": "boolean"
             }
           },
           {
@@ -1689,6 +2238,281 @@
         ]
       }
     },
+    "/cases/{case_id}/comments": {
+      "post": {
+        "operationId": "comment_cases__case_id__comments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEventRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Comment",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/cases/{case_id}/drafts": {
+      "get": {
+        "operationId": "drafts_cases__case_id__drafts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DraftRead"
+                  },
+                  "title": "Response Drafts Cases  Case Id  Drafts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Drafts",
+        "tags": [
+          "workspace"
+        ]
+      },
+      "post": {
+        "operationId": "create_draft_cases__case_id__drafts_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Draft",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/cases/{case_id}/drafts/{draft_id}": {
+      "put": {
+        "operationId": "update_draft_cases__case_id__drafts__draft_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Case Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Draft",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/cases/{case_id}/handoff": {
+      "post": {
+        "operationId": "handoff_cases__case_id__handoff_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandoffCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Handoff",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
     "/cases/{case_id}/priority": {
       "put": {
         "description": "Accept the suggested priority (send the same value) or override it (send another).",
@@ -1750,6 +2574,7 @@
     },
     "/cases/{case_id}/resolve": {
       "post": {
+        "description": "Record the outcome and stop the countdown. It does not send anything to the customer.",
         "operationId": "resolve_case_cases__case_id__resolve_post",
         "parameters": [
           {
@@ -2042,6 +2867,225 @@
         "summary": "Me",
         "tags": [
           "system"
+        ]
+      }
+    },
+    "/notifications": {
+      "get": {
+        "operationId": "notifications_notifications_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DeadlineNotice"
+                  },
+                  "title": "Response Notifications Notifications Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Notifications",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/saved-views": {
+      "get": {
+        "operationId": "saved_views_saved_views_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ViewRead"
+                  },
+                  "title": "Response Saved Views Saved Views Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Saved Views",
+        "tags": [
+          "workspace"
+        ]
+      },
+      "post": {
+        "operationId": "save_view_saved_views_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ViewCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ViewRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save View",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/saved-views/{view_id}": {
+      "delete": {
+        "operationId": "delete_view_saved_views__view_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "view_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "View Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete View",
+        "tags": [
+          "workspace"
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "list_users_users_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserRead"
+                  },
+                  "title": "Response List Users Users Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Users",
+        "tags": [
+          "accounts"
+        ]
+      },
+      "post": {
+        "operationId": "create_user_users_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create User",
+        "tags": [
+          "accounts"
         ]
       }
     }

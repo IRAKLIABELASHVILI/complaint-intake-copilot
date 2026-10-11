@@ -8,6 +8,7 @@ export const HANDLER: User = {
   email: 'nina@example.com',
   display_name: 'Nina Handler',
   role: 'handler',
+  is_admin: false,
 }
 
 export const INDICATOR: Indicator = {
@@ -91,6 +92,7 @@ export const TEAM_LEAD: User = {
   email: 'leo@example.com',
   display_name: 'Leo Lead',
   role: 'team_lead',
+  is_admin: false,
 }
 
 export function dashboard(overrides: Partial<Dashboard> = {}): Dashboard {

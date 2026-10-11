@@ -59,6 +59,11 @@ export function fakeApi(routes: Record<string, Handler>) {
         headers: { 'Content-Type': 'application/json' },
       })
     }
+    if (request.method === 'GET' && (['/notifications', '/saved-views', '/users'].includes(path) || path.endsWith('/drafts'))) return new Response('[]', { headers: { 'Content-Type': 'application/json' } })
+    if (request.method === 'POST' && path === '/auth/login') {
+      const valid = (body as { password?: string })?.password === 'good-token'
+      return new Response(JSON.stringify(valid ? { token: 'good-token' } : { detail: 'Email or password not accepted.' }), { status: valid ? 200 : 401, headers: { 'Content-Type': 'application/json' } })
+    }
     return new Response(JSON.stringify({ detail: `No fake route for ${request.method} ${path}` }), {
       status: 404,
       headers: { 'Content-Type': 'application/json' },

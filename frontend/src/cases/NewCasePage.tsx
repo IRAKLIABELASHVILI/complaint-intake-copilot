@@ -66,28 +66,54 @@ export function NewCasePage() {
 
   return (
     <>
-      <h1>New complaint</h1>
-      <form onSubmit={submit} className="panel form">
-        <label htmlFor="subject">{FIELDS.subject}</label>
-        <input {...field('subject')} required maxLength={500} />
+      <div className="page-title">
+        <div>
+          <p className="eyebrow">Intake</p>
+          <h1>New complaint</h1>
+          <p className="muted">Log a complaint received by email, phone or post.</p>
+        </div>
+      </div>
+      <div className="new-case-grid">
+        <form onSubmit={submit} className="panel form">
+          <div className="field span-2">
+            <label htmlFor="subject">{FIELDS.subject}</label>
+            <input {...field('subject')} required maxLength={500} />
+          </div>
+          <div className="field">
+            <label htmlFor="sender_name">{FIELDS.sender_name}</label>
+            <input {...field('sender_name')} maxLength={200} autoComplete="off" />
+          </div>
+          <div className="field">
+            <label htmlFor="sender_email">{FIELDS.sender_email}</label>
+            <input {...field('sender_email')} type="email" required autoComplete="off" />
+          </div>
+          <div className="field span-2">
+            <label htmlFor="body">{FIELDS.body}</label>
+            <textarea {...field('body')} required rows={12} maxLength={50000} />
+          </div>
+          <div className="field">
+            <label htmlFor="received_at">{FIELDS.received_at}</label>
+            <input {...field('received_at')} type="datetime-local" />
+          </div>
 
-        <label htmlFor="body">{FIELDS.body}</label>
-        <textarea {...field('body')} required rows={10} maxLength={50000} />
-
-        <label htmlFor="sender_email">{FIELDS.sender_email}</label>
-        <input {...field('sender_email')} type="email" required />
-
-        <label htmlFor="sender_name">{FIELDS.sender_name}</label>
-        <input {...field('sender_name')} maxLength={200} />
-
-        <label htmlFor="received_at">{FIELDS.received_at}</label>
-        <input {...field('received_at')} type="datetime-local" />
-
-        {create.error != null && <ErrorMessage error={inFormLanguage(create.error)} />}
-        <button type="submit" disabled={create.isPending}>
-          {create.isPending ? 'Saving…' : 'Create case'}
-        </button>
-      </form>
+          {create.error != null && (
+            <div className="span-2">
+              <ErrorMessage error={inFormLanguage(create.error)} />
+            </div>
+          )}
+          <button type="submit" disabled={create.isPending}>
+            {create.isPending ? 'Saving…' : 'Create case'}
+          </button>
+        </form>
+        <aside className="panel" aria-label="What happens next">
+          <h2>What happens next</h2>
+          <ol className="steps">
+            <li>The deadlines are set from the received time, in UK business days.</li>
+            <li>The AI suggests a category, a priority and any vulnerability, within seconds.</li>
+            <li>A handler reviews the suggestions and decides. Nothing is final before that.</li>
+          </ol>
+        </aside>
+      </div>
     </>
   )
 }

@@ -159,6 +159,8 @@ jobs:
           echo "frontend image OK"
 
   compose-stack:
+    env:
+      ALLOW_DEMO_TOKENS: "true"  # legacy smoke fixtures only; normal runs require passwords
     # The promise in docs/brief.md: `docker compose up` starts everything, and the seeded
     # complaints are analysed with no API key. Proven end to end, through nginx, on every push.
     needs: [backend, frontend-image]

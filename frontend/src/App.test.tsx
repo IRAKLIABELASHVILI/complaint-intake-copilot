@@ -41,23 +41,25 @@ describe('signing in', () => {
   it('sends a visitor to sign in first', async () => {
     renderApp('/cases', backend().fetch)
 
-    expect(await screen.findByLabelText('API token')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Password')).toBeInTheDocument()
   })
 
-  it('refuses a wrong token', async () => {
+  it('refuses a wrong password', async () => {
     renderApp('/sign-in', backend().fetch)
 
-    await userEvent.type(await screen.findByLabelText('API token'), 'wrong')
+    await userEvent.type(await screen.findByLabelText('Email'), 'handler@example.com')
+    await userEvent.type(await screen.findByLabelText('Password'), 'wrong')
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('That token was not accepted.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Email or password not accepted.')
     expect(sessionStorage.length).toBe(0) // a refused token is not kept
   })
 
   it('signs in and shows the queue', async () => {
     renderApp('/sign-in', backend().fetch)
 
-    await userEvent.type(await screen.findByLabelText('API token'), GOOD_TOKEN)
+    await userEvent.type(await screen.findByLabelText('Email'), 'handler@example.com')
+    await userEvent.type(await screen.findByLabelText('Password'), GOOD_TOKEN)
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
 
     expect(await screen.findByRole('heading', { name: 'Cases' })).toBeInTheDocument()
@@ -80,7 +82,7 @@ describe('signing in', () => {
     expired = true
     await userEvent.click(link)
 
-    expect(await screen.findByLabelText('API token')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Password')).toBeInTheDocument()
     expect(sessionStorage.length).toBe(0)
   })
 })

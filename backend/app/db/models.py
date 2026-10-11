@@ -46,6 +46,10 @@ class User(TenantScopedMixin, TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320), unique=True)
     display_name: Mapped[str] = mapped_column(String(200))
     role: Mapped[UserRole] = mapped_column(str_enum(UserRole))
+    password_hash: Mapped[str | None] = mapped_column(String(256))
+    is_admin: Mapped[bool] = mapped_column(default=False, server_default="false")
+    failed_logins: Mapped[int] = mapped_column(default=0, server_default="0")
+    locked_until: Mapped[datetime | None]
     # SHA-256 of the user's API token. The token itself is never stored.
     api_token_hash: Mapped[str] = mapped_column(String(64), unique=True)
 
@@ -179,3 +183,31 @@ class VulnerabilityIndicator(TenantScopedMixin, TimestampMixin, Base):
     decided_at: Mapped[datetime | None]
 
     case: Mapped[Case] = relationship()
+
+
+class LoginSession(TenantScopedMixin, TimestampMixin, Base):
+    __tablename__ = "login_sessions"
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime]
+
+
+class SavedView(TenantScopedMixin, TimestampMixin, Base):
+    __tablename__ = "saved_views"
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(80))
+    filters: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class ResponseDraft(TenantScopedMixin, TimestampMixin, Base):
+    __tablename__ = "response_drafts"
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    case_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("cases.id"), index=True)
+    body: Mapped[str] = mapped_column(Text)
+    provider: Mapped[str] = mapped_column(String(32))
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    approved_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    approved_at: Mapped[datetime | None]
+    version: Mapped[int] = mapped_column(default=1, server_default="1")
