@@ -13,6 +13,7 @@ from app.db.repositories import AccountRepository, UserRepository
 from app.domain.enums import UserRole
 from app.schemas.users import UserRead
 from app.services.accounts import (
+    PASSWORD_MIN_LENGTH,
     InvalidCredentialsError,
     PasswordReuseError,
     change_password,
@@ -37,8 +38,8 @@ class LoginRead(BaseModel):
     token: str
 
 
-# Every password a person chooses or is given: long enough to resist guessing.
-NewPassword = Annotated[str, Field(min_length=12, max_length=256)]
+# Every password a person chooses or is given.
+NewPassword = Annotated[str, Field(min_length=PASSWORD_MIN_LENGTH, max_length=256)]
 
 
 class AccountCreate(BaseModel):

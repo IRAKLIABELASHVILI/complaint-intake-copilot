@@ -39,7 +39,7 @@ Create the first administrator after startup:
 docker compose exec api python -m app.devtools.create_admin --email admin@example.com
 ```
 
-The command prompts for a password (at least 12 characters). Use the email and password to sign in.
+The command prompts for a password (at least 8 characters). Use the email and password to sign in.
 An actual mailbox is not required for local use; no email is sent. Administrators create other
 accounts under **Accounts**, selecting handler/team lead and optional account-management permission.
 Sessions expire after eight hours and are revoked on sign-out. Five failed password attempts lock

@@ -11,7 +11,7 @@ from app.db.models import Tenant
 from app.db.repositories import AccountRepository, UserRepository
 from app.db.session import new_session
 from app.domain.enums import UserRole
-from app.services.accounts import new_account
+from app.services.accounts import PASSWORD_MIN_LENGTH, new_account
 
 
 def main() -> None:
@@ -35,10 +35,10 @@ def main() -> None:
         password = (
             secrets.token_urlsafe(18)
             if args.generate_password
-            else getpass.getpass("Password (12+ characters): ")
+            else getpass.getpass(f"Password ({PASSWORD_MIN_LENGTH}+ characters): ")
         )
-        if len(password) < 12:
-            raise SystemExit("Password must contain at least 12 characters.")
+        if len(password) < PASSWORD_MIN_LENGTH:
+            raise SystemExit(f"Password must contain at least {PASSWORD_MIN_LENGTH} characters.")
         # A generated password was shown on screen: treat it as temporary, like an admin's reset.
         account = new_account(
             args.email,

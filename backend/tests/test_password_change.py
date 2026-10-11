@@ -100,7 +100,7 @@ def test_changing_a_password_needs_the_current_one_and_a_different_new_one(
 
     same = {"current_password": ADMIN_PASSWORD, "new_password": ADMIN_PASSWORD}
     assert client.post("/auth/password", json=same, headers=admin).status_code == 422
-    short = {"current_password": ADMIN_PASSWORD, "new_password": "too short"}
+    short = {"current_password": ADMIN_PASSWORD, "new_password": "short12"}
     assert client.post("/auth/password", json=short, headers=admin).status_code == 422
 
 
@@ -162,3 +162,19 @@ def test_only_an_administrator_resets_and_only_in_their_organisation(
     not_admin = sign_in(client, handler.email, ADMIN_PASSWORD)
     refused = client.post(f"/users/{colleague_id}/password", json=reset, headers=not_admin)
     assert refused.status_code == 403
+
+
+def test_eight_characters_is_the_shortest_password(
+    client: TestClient, admin: dict[str, str]
+) -> None:
+    account = {"email": "new@example.com", "display_name": "New colleague", "role": "handler"}
+    too_short = client.post("/users", json={**account, "password": "1234567"}, headers=admin)
+    assert too_short.status_code == 422
+    accepted = client.post("/users", json={**account, "password": "12345678"}, headers=admin)
+    assert accepted.status_code == 201
+
+    temporary = sign_in(client, "new@example.com", "12345678")
+    change = {"current_password": "12345678", "new_password": "abcdefg"}
+    assert client.post("/auth/password", json=change, headers=temporary).status_code == 422
+    change["new_password"] = "abcdefgh"
+    assert client.post("/auth/password", json=change, headers=temporary).status_code == 204

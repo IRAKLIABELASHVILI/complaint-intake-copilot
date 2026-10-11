@@ -4,6 +4,7 @@ import { useCreateAccount, useResetPassword, useUsers } from '../api/hooks'
 import type { User } from '../api/types'
 import { ErrorMessage, Panel } from '../shared/Layout'
 import { useCurrentUser } from './authContext'
+import { PASSWORD_MIN_LENGTH } from './passwordRules'
 
 const ROLE_LABELS = { handler: 'Handler', team_lead: 'Team lead' } as const
 
@@ -120,12 +121,13 @@ export function AccountsPage() {
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={12}
+                minLength={PASSWORD_MIN_LENGTH}
                 maxLength={256}
               />
             </label>
             <p className="hint">
-              At least 12 characters. Temporary: they choose their own at first sign-in.
+              At least {PASSWORD_MIN_LENGTH} characters. Temporary: they choose their own at first
+              sign-in.
             </p>
             <label>
               Role
@@ -241,7 +243,7 @@ function ResetPasswordForm({
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
-            minLength={12}
+            minLength={PASSWORD_MIN_LENGTH}
             maxLength={256}
           />
           <button type="button" onClick={() => setPassword(randomTemporaryPassword())}>
@@ -255,7 +257,7 @@ function ResetPasswordForm({
       </p>
       {reset.isError && <ErrorMessage error={reset.error} />}
       <div className="inline">
-        <button type="submit" disabled={reset.isPending || password.length < 12}>
+        <button type="submit" disabled={reset.isPending || password.length < PASSWORD_MIN_LENGTH}>
           {reset.isPending ? 'Saving…' : 'Set temporary password'}
         </button>
         <button type="button" onClick={() => onDone('')}>

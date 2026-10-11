@@ -48,7 +48,7 @@ describe('a temporary password', () => {
 
     await userEvent.type(screen.getByLabelText('Temporary password'), 'temporary password 1')
     await userEvent.type(screen.getByLabelText('New password'), 'short')
-    expect(screen.getByText(/At least 12 characters \(5 so far\)/)).toBeInTheDocument()
+    expect(screen.getByText(/At least 8 characters \(5 so far\)/)).toBeInTheDocument()
     expect(save).toBeDisabled()
 
     await userEvent.clear(screen.getByLabelText('New password'))

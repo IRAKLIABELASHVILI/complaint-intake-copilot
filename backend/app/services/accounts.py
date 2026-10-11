@@ -29,6 +29,10 @@ def verify_password(password: str, encoded: str) -> bool:
 
 _DUMMY_HASH = hash_password(secrets.token_urlsafe(32))
 
+# The shortest password a person may choose or be given. Eight is NIST's minimum for passwords
+# people pick; the lockout after five wrong attempts is what stops guessing.
+PASSWORD_MIN_LENGTH = 8
+
 
 class InvalidCredentialsError(Exception):
     pass

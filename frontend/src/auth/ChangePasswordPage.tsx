@@ -4,8 +4,8 @@ import { Link, Navigate } from 'react-router'
 import { useChangePassword } from '../api/hooks'
 import { ErrorMessage } from '../shared/Layout'
 import { useAuth, useCurrentUser } from './authContext'
+import { PASSWORD_MIN_LENGTH as MIN_LENGTH } from './passwordRules'
 
-const MIN_LENGTH = 12
 
 /**
  * Choose a new password. Forced after an administrator set a temporary one: until then this is
