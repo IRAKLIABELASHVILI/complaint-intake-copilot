@@ -11,7 +11,8 @@ const progress = (business_days_remaining: number, is_overdue = false) => ({
 describe('deadlines', () => {
   it.each([
     [progress(5), 'ok', '5 business days left'],
-    [progress(2), 'ok', '2 business days left'],
+    [progress(3), 'ok', '3 business days left'],
+    [progress(2), 'due-soon', '2 business days left'], // "at risk" on the dashboard too
     [progress(1), 'due-soon', '1 business day left'],
     [progress(0), 'due-soon', 'Due today'],
     [progress(-1, true), 'overdue', 'Overdue by 1 business day'],

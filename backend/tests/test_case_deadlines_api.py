@@ -4,28 +4,16 @@ The clock is frozen by overriding the `get_now` dependency, so these tests never
 today's date. C# comparison: registering a FakeTimeProvider in WebApplicationFactory.
 """
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from datetime import UTC, datetime
 
-import pytest
 from fastapi.testclient import TestClient
 
-from app.api.deps import get_now
-from app.main import app
 from tests.conftest import TwoTenants, complaint_payload
 
 # complaint_payload() is received Monday 2026-09-14 09:30 BST.
 SRC_DEADLINE = "2026-09-17T16:00:00Z"  # Thursday 17:00 BST
 FINAL_RESPONSE_DEADLINE = "2026-11-09T23:59:59Z"  # Monday 23:59:59 GMT
-
-
-@pytest.fixture
-def freeze_time(client: TestClient) -> Iterator[Callable[[datetime], None]]:
-    def _freeze(moment: datetime) -> None:
-        app.dependency_overrides[get_now] = lambda: moment
-
-    yield _freeze
-    app.dependency_overrides.pop(get_now, None)
 
 
 def test_new_case_has_both_deadlines_and_a_countdown(

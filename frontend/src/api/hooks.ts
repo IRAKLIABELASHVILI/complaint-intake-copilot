@@ -4,6 +4,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { type CaseFilters, toApiQuery } from '../cases/caseFilters'
 import { useApi } from './apiContext'
 import { unwrap } from './client'
 import type {
@@ -18,26 +19,41 @@ import type {
 export const PAGE_SIZE = 25
 
 export const queryKeys = {
-  cases: (status: CaseStatus | null, offset: number) => ['cases', status, offset] as const,
+  cases: (filters: CaseFilters, offset: number) => ['cases', filters, offset] as const,
   allCases: ['cases'] as const,
   case: (id: string) => ['case', id] as const,
   audit: (id: string) => ['audit', id] as const,
+  dashboard: ['dashboard'] as const,
 }
 
 /** While the worker is analysing, poll so the suggestions appear without a manual refresh. */
 const ANALYSIS_POLL_MS = 2000
 const STILL_ANALYSING: ReadonlySet<CaseStatus> = new Set(['new', 'analysing'])
 
-export function useCases(status: CaseStatus | null, offset: number) {
+export function useCases(filters: CaseFilters, offset: number) {
   const api = useApi()
   return useQuery({
-    queryKey: queryKeys.cases(status, offset),
+    queryKey: queryKeys.cases(filters, offset),
     queryFn: async () =>
       unwrap(
         await api.GET('/cases', {
-          params: { query: { status: status ?? undefined, limit: PAGE_SIZE, offset } },
+          params: { query: { ...toApiQuery(filters), limit: PAGE_SIZE, offset } },
         }),
       ),
+  })
+}
+
+/** Countdowns move with the clock and cases keep arriving: refresh while the page is open. */
+const DASHBOARD_REFRESH_MS = 60_000
+
+/** US-5. `enabled: false` for handlers: the API would answer 403, so do not even ask. */
+export function useDashboard(enabled: boolean) {
+  const api = useApi()
+  return useQuery({
+    queryKey: queryKeys.dashboard,
+    queryFn: async () => unwrap(await api.GET('/dashboard')),
+    enabled,
+    refetchInterval: DASHBOARD_REFRESH_MS,
   })
 }
 
@@ -69,11 +85,13 @@ export function useCreateCase() {
     onSuccess: (created) => {
       queryClient.setQueryData(queryKeys.case(created.id), created)
       void queryClient.invalidateQueries({ queryKey: queryKeys.allCases })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
     },
   })
 }
 
-/** After any decision: the server returns the updated case; the audit trail and list changed too. */
+/** After any decision: the server returns the updated case; the audit trail, the lists and the
+ * dashboard changed too. */
 function useCaseDecision<Input>(
   caseId: string,
   send: (input: Input) => Promise<CaseDetail>,
@@ -85,6 +103,7 @@ function useCaseDecision<Input>(
       queryClient.setQueryData(queryKeys.case(caseId), updated)
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit(caseId) })
       void queryClient.invalidateQueries({ queryKey: queryKeys.allCases })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard })
     },
   })
 }

@@ -48,12 +48,12 @@ class DeadlineTracking:
 
 
 def calculate_deadlines(received_at: datetime, calendar: BusinessCalendar) -> CaseDeadlines:
-    day_of_receipt = _uk_date(received_at)
+    day_of_receipt = uk_date(received_at)
     src_day = calendar.add_business_days(day_of_receipt, SRC_BUSINESS_DAYS)
     final_response_day = day_of_receipt + FINAL_RESPONSE_PERIOD
     return CaseDeadlines(
-        src_deadline_at=_uk_time_as_utc(src_day, SRC_CLOSE_OF_BUSINESS),
-        final_response_deadline_at=_uk_time_as_utc(final_response_day, END_OF_DAY),
+        src_deadline_at=uk_time_as_utc(src_day, SRC_CLOSE_OF_BUSINESS),
+        final_response_deadline_at=uk_time_as_utc(final_response_day, END_OF_DAY),
     )
 
 
@@ -79,8 +79,8 @@ def track_deadlines(
 
 
 def _progress(deadline_at: datetime, now: datetime, calendar: BusinessCalendar) -> DeadlineProgress:
-    today = _uk_date(now)
-    deadline_day = _uk_date(deadline_at)
+    today = uk_date(now)
+    deadline_day = uk_date(deadline_at)
 
     if now <= deadline_at:
         remaining = calendar.business_days_between(today, deadline_day)
@@ -100,12 +100,12 @@ def _resolved_in_time(
     return resolved_at <= deadlines.final_response_deadline_at
 
 
-def _uk_date(moment: datetime) -> date:
+def uk_date(moment: datetime) -> date:
     _require_aware(moment)
     return moment.astimezone(UK_TIMEZONE).date()
 
 
-def _uk_time_as_utc(day: date, at: time) -> datetime:
+def uk_time_as_utc(day: date, at: time) -> datetime:
     return datetime.combine(day, at, tzinfo=UK_TIMEZONE).astimezone(UTC)
 
 

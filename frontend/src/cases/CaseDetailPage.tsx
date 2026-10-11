@@ -1,8 +1,9 @@
-import { Link, useParams } from 'react-router'
+import { Link, useLocation, useParams } from 'react-router'
 
 import { useCase } from '../api/hooks'
 import type { CaseDetail, CaseStatus } from '../api/types'
 import { formatDateTime } from '../shared/format'
+import { backToList } from './caseFilters'
 import { ErrorMessage, Panel } from '../shared/Layout'
 import { AuditTrail } from './components/AuditTrail'
 import { StatusBadge } from './components/badges'
@@ -31,13 +32,14 @@ export function CaseDetailPage() {
 }
 
 function CaseView({ detail }: { detail: CaseDetail }) {
+  const back = backToList(useLocation().state)
   const canDecide = DECIDABLE.has(detail.status)
   const analysing = detail.status === 'new' || detail.status === 'analysing'
 
   return (
     <>
       <p>
-        <Link to="/cases">← All cases</Link>
+        <Link to={back.to}>{back.label}</Link>
       </p>
       <div className="page-title">
         <h1>

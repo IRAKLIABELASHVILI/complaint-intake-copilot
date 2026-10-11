@@ -6,6 +6,8 @@ import type {
   AuditEvent,
   CaseStatus,
   Category,
+  DeadlineKind,
+  DeadlineRisk,
   IndicatorDecision,
   IndicatorType,
   Priority,
@@ -71,6 +73,16 @@ export const AUDIT_SOURCE_LABELS: Record<AuditEvent['source'], string> = {
   handler: 'Handler',
 }
 
+export const DEADLINE_LABELS: Record<DeadlineKind, string> = {
+  src: 'Summary resolution',
+  final_response: 'Final response',
+}
+
+export const DEADLINE_RISK_LABELS: Record<DeadlineRisk, string> = {
+  at_risk: 'At risk',
+  overdue: 'Overdue',
+}
+
 /** Every value of a label map, in order: for <select> options. */
 export function optionsOf<Key extends string>(labels: Record<Key, string>): [Key, string][] {
   return Object.entries(labels) as [Key, string][]
@@ -81,8 +93,15 @@ export function humanise(code: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-/** Only accept real statuses from the URL; anything else means "all". `Object.hasOwn`, not `in`:
- * `"toString" in STATUS_LABELS` is true, because `in` also sees inherited properties. */
+/** Only accept real codes from the URL; anything else means "no filter". `Object.hasOwn`, not
+ * `in`: `"toString" in STATUS_LABELS` is true, because `in` also sees inherited properties. */
+export function parseCode<Key extends string>(
+  labels: Record<Key, string>,
+  value: string | null,
+): Key | null {
+  return value !== null && Object.hasOwn(labels, value) ? (value as Key) : null
+}
+
 export function parseStatus(value: string | null): CaseStatus | null {
-  return value !== null && Object.hasOwn(STATUS_LABELS, value) ? (value as CaseStatus) : null
+  return parseCode(STATUS_LABELS, value)
 }

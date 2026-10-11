@@ -5,6 +5,7 @@ import { SignInPage } from './auth/SignInPage'
 import { CaseDetailPage } from './cases/CaseDetailPage'
 import { CaseListPage } from './cases/CaseListPage'
 import { NewCasePage } from './cases/NewCasePage'
+import { DashboardPage } from './dashboard/DashboardPage'
 import { Layout } from './shared/Layout'
 
 export function App() {
@@ -21,6 +22,7 @@ export function App() {
         <Route path="/cases" element={<CaseListPage />} />
         <Route path="/cases/new" element={<NewCasePage />} />
         <Route path="/cases/:caseId" element={<CaseDetailPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/cases" replace />} />
     </Routes>

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Case
 from app.db.repositories import CaseRepository, CrossTenantWriteError
 from tests.conftest import TwoTenants, complaint_payload
+from tests.fakes import model_answer
 
 CreateCase = Callable[..., dict[str, object]]
 
@@ -96,6 +97,48 @@ def test_list_cases_only_returns_own_tenants_cases(
     assert {item["id"] for item in list_a["items"]} == a_ids
     assert list_b["total"] == 1
     assert [item["id"] for item in list_b["items"]] == [case_b["id"]]
+
+
+def test_dashboard_and_its_filters_count_only_own_tenants_cases(
+    client: TestClient,
+    tenants: TwoTenants,
+    create_case: CreateCase,
+    analyse: Callable[..., None],
+) -> None:
+    """US-5.3, US-7.5: tenant B's overdue, categorised, vulnerable case shows up nowhere for A."""
+    # Arrange: tenant B has an overdue case with a suggestion and a confirmed indicator
+    quote = "My husband passed away last month."
+    case_b = create_case(tenants.handler_b, received_at="2026-07-20T10:00:00+01:00", body=quote)
+    answer = model_answer(
+        vulnerability_indicators=[{"type": "bereavement", "evidence_quote": quote}]
+    )
+    analyse(tenants.handler_b, case_b, answer)
+    case_b = client.get(f"/cases/{case_b['id']}", headers=tenants.handler_b.headers).json()
+    indicator_id = case_b["vulnerability_indicators"][0]["id"]
+    decision = client.put(
+        f"/cases/{case_b['id']}/vulnerability-indicators/{indicator_id}/decision",
+        json={"decision": "confirmed"},
+        headers=tenants.handler_b.headers,
+    )
+    assert decision.status_code == 200
+
+    # Act
+    dashboard = client.get("/dashboard", headers=tenants.lead_a.headers).json()
+    filtered = [
+        client.get("/cases", params=query, headers=tenants.lead_a.headers).json()["total"]
+        for query in (
+            {"suggested_category": "fees_and_charges"},
+            {"vulnerability": "bereavement"},
+            {"deadline": "final_response", "deadline_risk": "overdue"},
+        )
+    ]
+
+    # Assert
+    assert dashboard["open_cases"] == 0
+    assert dashboard["final_response"]["overdue"] == 0
+    assert all(row["suggested"] == 0 for row in dashboard["categories"])
+    assert all(row["cases"] == 0 for row in dashboard["vulnerabilities"])
+    assert filtered == [0, 0, 0]
 
 
 def test_user_cannot_read_another_tenants_audit_trail(

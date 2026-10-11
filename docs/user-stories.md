@@ -123,6 +123,16 @@ Every user belongs to exactly one tenant (client firm).
 3. All numbers are **for my tenant only**.
 4. **When** I click a number, **then** I see the matching cases.
 
+**Implementation decisions (milestone 7)**
+
+- **Each deadline is counted separately.** Missing the SRC deadline is not a breach: the firm can no longer close the case with a summary resolution communication (DISP 1.5), so it now needs a final response within 8 weeks (DISP 1.6). Counting "past any deadline" would put almost every case older than three business days next to real breaches. The dashboard shows at risk and overdue for the SRC deadline and for the final response deadline, and only an overdue final response is presented as a breach.
+- **At risk** means not overdue, and `business_days_remaining <= 2` on that deadline: the same countdown each case shows. The rule becomes a time window on the stored deadline column (`app/domain/deadline_risk.py`), so it is counted in SQL. A test compares the window with the countdown for every five hours of two months with weekends, a clock change and Christmas. The "due soon" badge on cases uses the same threshold.
+- **Every number counts open cases** (not resolved), and links to `GET /cases` with `open=true` plus its filter. The list and the dashboard share the same query conditions, and a test checks each number against the total of the list it opens.
+- **Categories:** a decided category (`final_category`) is counted as decided. A case without one counts as suggested when its newest completed analysis suggested a category and the case shows it (not `new` or `analysing`). Everything else is "no category yet": still being analysed, or the analysis failed.
+- **Vulnerability counts cases, not indicators:** a case with two confirmed bereavement indicators counts once. Pending and rejected indicators are not counted.
+- **No new index yet.** The counts read the tenant's open cases through the existing `(tenant_id, status)` index. An index on the deadline columns becomes worth adding at tens of thousands of open cases per tenant.
+- If the bank holiday data does not cover the next few business days, the dashboard and the at-risk filter answer `503` rather than guessing (US-4).
+
 ---
 
 ## US-6: Personal data is redacted before it reaches the LLM

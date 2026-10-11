@@ -1,5 +1,6 @@
 /** Test data in the API's exact shapes: the types make sure a fixture can never drift from it. */
-import type { CaseDetail, CaseList, CaseSummary, Indicator, User } from '../api/types'
+import type { CaseDetail, CaseList, CaseSummary, Dashboard, Indicator, User } from '../api/types'
+import { CATEGORY_LABELS, optionsOf } from '../shared/labels'
 
 export const HANDLER: User = {
   id: 'u-1',
@@ -80,5 +81,37 @@ export function summaryOf(detail: CaseDetail, openFlags = 0): CaseSummary {
     final_response_deadline_at: detail.final_response_deadline_at,
     deadline_tracking: detail.deadline_tracking,
     open_vulnerability_flags: openFlags,
+  }
+}
+
+export const TEAM_LEAD: User = {
+  id: 'u-2',
+  tenant_id: 't-1',
+  email: 'leo@example.com',
+  display_name: 'Leo Lead',
+  role: 'team_lead',
+}
+
+export function dashboard(overrides: Partial<Dashboard> = {}): Dashboard {
+  const zeroCategories = optionsOf(CATEGORY_LABELS).map(([category]) => ({
+    category,
+    decided: 0,
+    suggested: 0,
+  }))
+  return {
+    generated_at: '2026-10-05T09:00:00Z',
+    open_cases: 7,
+    at_risk_business_days: 2,
+    summary_resolution: { at_risk: 2, overdue: 3 },
+    final_response: { at_risk: 0, overdue: 1 },
+    categories: zeroCategories.map((row) =>
+      row.category === 'fees_and_charges' ? { ...row, decided: 1, suggested: 4 } : row,
+    ),
+    uncategorised: 2,
+    vulnerabilities: [
+      { indicator_type: 'bereavement', driver: 'life_events', cases: 1 },
+      { indicator_type: 'mental_health', driver: 'health', cases: 0 },
+    ],
+    ...overrides,
   }
 }

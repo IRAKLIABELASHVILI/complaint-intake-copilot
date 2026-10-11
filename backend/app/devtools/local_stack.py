@@ -37,6 +37,7 @@ from app.worker.case_analyser import CaseAnalyser
 logger = logging.getLogger(__name__)
 
 DATABASE_FILE = Path(os.environ.get("LOCAL_DB_FILE", "local-demo.db"))
+PORT = int(os.environ.get("LOCAL_PORT", "8000"))
 POLL_SECONDS = 1.0
 
 
@@ -80,8 +81,8 @@ def main() -> None:
             yield session
 
     app.dependency_overrides[get_session] = local_session
-    logger.info("Local stack ready on http://127.0.0.1:8000 (database: %s)", DATABASE_FILE)
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_config=None)
+    logger.info("Local stack ready on http://127.0.0.1:%d (database: %s)", PORT, DATABASE_FILE)
+    uvicorn.run(app, host="127.0.0.1", port=PORT, log_config=None)
 
 
 if __name__ == "__main__":

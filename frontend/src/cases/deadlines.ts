@@ -4,10 +4,14 @@ import { plural } from '../shared/format'
 
 export type Urgency = 'overdue' | 'due-soon' | 'ok'
 
-/** 0 = due today, 1 = tomorrow: both need attention now. Negative = overdue (from the API). */
+/** The dashboard's "at risk" rule (backend: app/domain/deadline_risk.py), so a case counted as
+ * at risk there is marked "due soon" here. */
+export const AT_RISK_BUSINESS_DAYS = 2
+
+/** 0 = due today. Negative = overdue (from the API). */
 export function urgencyOf(progress: DeadlineProgress): Urgency {
   if (progress.is_overdue) return 'overdue'
-  return progress.business_days_remaining <= 1 ? 'due-soon' : 'ok'
+  return progress.business_days_remaining <= AT_RISK_BUSINESS_DAYS ? 'due-soon' : 'ok'
 }
 
 export function deadlineText(progress: DeadlineProgress): string {

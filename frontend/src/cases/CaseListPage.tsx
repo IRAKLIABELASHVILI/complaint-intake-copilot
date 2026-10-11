@@ -2,24 +2,33 @@ import { Link, useSearchParams } from 'react-router'
 
 import { PAGE_SIZE, useCases } from '../api/hooks'
 import type { CaseStatus } from '../api/types'
+import { useCurrentUser } from '../auth/authContext'
 import { formatDateTime } from '../shared/format'
 import { STATUS_LABELS, optionsOf, parseStatus } from '../shared/labels'
 import { ErrorMessage } from '../shared/Layout'
+import { type FromList, describeFilters, filtersToSearch, parseFilters } from './caseFilters'
 import { DeadlineBadge, FlagCount, StatusBadge } from './components/badges'
 
-/** The handler's queue. Filter and page live in the URL, so a view can be bookmarked or shared. */
+/** The handler's queue. Filters and page live in the URL, so a view can be bookmarked, shared,
+ * or opened from a number on the dashboard. */
 export function CaseListPage() {
+  const user = useCurrentUser()
   const [params, setParams] = useSearchParams()
-  const status = parseStatus(params.get('status'))
+  const filters = parseFilters(params)
   const offset = Math.max(0, Number(params.get('offset')) || 0)
-  const cases = useCases(status, offset)
+  const cases = useCases(filters, offset)
+  const described = describeFilters(filters)
+  // The case page's "back" link returns to exactly this view: filters, status and page.
+  const fromList: FromList = { listSearch: params.toString() }
 
+  /** Changing the status or the page keeps every other filter. */
   function show(next: { status?: CaseStatus | null; offset?: number }) {
-    const merged = { status, offset, ...next }
-    const query: Record<string, string> = {}
-    if (merged.status) query.status = merged.status
-    if (merged.offset) query.offset = String(merged.offset)
-    setParams(query)
+    const { offset: nextOffset = offset, ...changed } = next
+    setParams(filtersToSearch({ ...filters, ...changed }, nextOffset))
+  }
+
+  function clearFilters() {
+    setParams(filtersToSearch({ status: filters.status }))
   }
 
   return (
@@ -29,7 +38,7 @@ export function CaseListPage() {
         <label className="inline">
           Status
           <select
-            value={status ?? ''}
+            value={filters.status ?? ''}
             onChange={(event) => show({ status: parseStatus(event.target.value), offset: 0 })}
           >
             <option value="">All</option>
@@ -42,9 +51,26 @@ export function CaseListPage() {
         </label>
       </div>
 
+      {described.length > 0 && (
+        <section className="active-filters" aria-label="Active filters">
+          <span>Showing:</span>
+          <ul>
+            {described.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <button type="button" className="link-button" onClick={clearFilters}>
+            Clear filters
+          </button>
+          {user.role === 'team_lead' && <Link to="/dashboard">Back to the dashboard</Link>}
+        </section>
+      )}
+
       {cases.isPending && <p>Loading cases…</p>}
       {cases.isError && <ErrorMessage error={cases.error} />}
-      {cases.data && cases.data.total === 0 && <p>No cases.</p>}
+      {cases.data && cases.data.total === 0 && (
+        <p>{described.length > 0 ? 'No cases match these filters.' : 'No cases.'}</p>
+      )}
       {cases.data && cases.data.total > 0 && cases.data.items.length === 0 && (
         // A bookmark to a page that no longer exists (cases were closed since): offer a way back.
         <p>
@@ -73,7 +99,9 @@ export function CaseListPage() {
               {cases.data.items.map((item) => (
                 <tr key={item.id}>
                   <td className="nowrap">
-                    <Link to={`/cases/${item.id}`}>{item.reference}</Link>
+                    <Link to={`/cases/${item.id}`} state={fromList}>
+                      {item.reference}
+                    </Link>
                   </td>
                   <td>{item.subject}</td>
                   <td className="nowrap">{formatDateTime(item.received_at)}</td>

@@ -294,6 +294,128 @@ button:disabled {
   color: var(--accent);
 }
 
+/* --- Dashboard -------------------------------------------------------------------------------- */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 1rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+table.counts {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table.counts th,
+table.counts td {
+  text-align: left;
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+table.counts thead th {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+table.counts tbody th,
+table.counts tfoot th {
+  font-weight: 500;
+}
+
+table.counts .hint {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+table.counts .number {
+  text-align: right;
+}
+
+/* Numbers never wrap; headings may, or a phone-width table would push past its panel. */
+table.counts td.number {
+  white-space: nowrap;
+}
+
+.count {
+  display: inline-block;
+  min-width: 2.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: var(--radius);
+  font-weight: 700;
+  text-align: center;
+}
+
+.count.zero {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+a.count {
+  border: 1px solid var(--border);
+  text-decoration: none;
+}
+
+a.count:hover {
+  text-decoration: underline;
+}
+
+a.count-danger {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+a.count-warning {
+  background: var(--warning-bg);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+/* An AI suggestion is not a decision: dashed and italic, never mistaken for a decided number. */
+a.count-suggested {
+  border-style: dashed;
+  font-style: italic;
+}
+
+.active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  padding: 0.6rem 1rem;
+  background: var(--info-bg);
+  border-radius: var(--radius);
+}
+
+.active-filters ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.active-filters li {
+  padding: 0.1rem 0.55rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+
 /* --- Case list -------------------------------------------------------------------------------- */
 
 .table-scroll {

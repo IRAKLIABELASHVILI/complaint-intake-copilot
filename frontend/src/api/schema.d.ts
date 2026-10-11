@@ -153,6 +153,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dashboard
+         * @description US-5: open cases close to breach and overdue, by category and by vulnerability.
+         *
+         *     Team leads only, and for their own tenant only. Every number links to `GET /cases` with the
+         *     matching filters.
+         */
+        get: operations["get_dashboard_dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -388,10 +411,73 @@ export interface components {
          * @enum {string}
          */
         Category: "fees_and_charges" | "service_quality" | "account_administration" | "payments_and_transfers" | "lending_and_affordability" | "fraud_and_scams" | "advice_and_mis_selling" | "collections_and_arrears" | "other";
+        /** CategoryCountRead */
+        CategoryCountRead: {
+            category: components["schemas"]["Category"];
+            /**
+             * Decided
+             * @description Cases a person put in this category
+             */
+            decided: number;
+            /**
+             * Suggested
+             * @description Cases only the AI put in this category, not decided yet
+             */
+            suggested: number;
+        };
         /** CategoryDecision */
         CategoryDecision: {
             category: components["schemas"]["Category"];
         };
+        /** DashboardRead */
+        DashboardRead: {
+            /** At Risk Business Days */
+            at_risk_business_days: number;
+            /**
+             * Categories
+             * @description Every category, in a fixed order
+             */
+            categories: components["schemas"]["CategoryCountRead"][];
+            /** @description The 8-week final response deadline (DISP 1.6). Overdue = a breach. */
+            final_response: components["schemas"]["DeadlineCountsRead"];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Open Cases */
+            open_cases: number;
+            /** @description The SRC deadline (DISP 1.5). Missing it is not a breach: the case then needs a final response instead. */
+            summary_resolution: components["schemas"]["DeadlineCountsRead"];
+            /**
+             * Uncategorised
+             * @description Open cases with no decided or suggested category
+             */
+            uncategorised: number;
+            /**
+             * Vulnerabilities
+             * @description Every indicator type, confirmed indicators only
+             */
+            vulnerabilities: components["schemas"]["VulnerabilityCountRead"][];
+        };
+        /** DeadlineCountsRead */
+        DeadlineCountsRead: {
+            /**
+             * At Risk
+             * @description Not missed yet, with at_risk_business_days or fewer left
+             */
+            at_risk: number;
+            /**
+             * Overdue
+             * @description Past the deadline
+             */
+            overdue: number;
+        };
+        /**
+         * DeadlineKind
+         * @enum {string}
+         */
+        DeadlineKind: "src" | "final_response";
         /** DeadlineProgressRead */
         DeadlineProgressRead: {
             /**
@@ -407,6 +493,12 @@ export interface components {
             /** Is Overdue */
             is_overdue: boolean;
         };
+        /**
+         * DeadlineRisk
+         * @description US-5: where an open case stands against one of its deadlines.
+         * @enum {string}
+         */
+        DeadlineRisk: "at_risk" | "overdue";
         /**
          * DeadlineTrackingRead
          * @description Calculated on every read, because it depends on today's date (US-4.6, US-4.7).
@@ -546,6 +638,16 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VulnerabilityCountRead */
+        VulnerabilityCountRead: {
+            /**
+             * Cases
+             * @description Open cases with at least one confirmed indicator of the type
+             */
+            cases: number;
+            driver: components["schemas"]["VulnerabilityDriver"];
+            indicator_type: components["schemas"]["IndicatorType"];
+        };
         /**
          * VulnerabilityDriver
          * @description The four drivers of vulnerability in FCA FG21/1.
@@ -565,6 +667,20 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["CaseStatus"] | null;
+                /** @description Only cases that are not resolved */
+                open?: boolean;
+                /** @description Which deadline `deadline_risk` applies to */
+                deadline?: components["schemas"]["DeadlineKind"] | null;
+                /** @description at_risk: 2 business days or fewer left; overdue: past the deadline. Only open cases match. */
+                deadline_risk?: components["schemas"]["DeadlineRisk"] | null;
+                /** @description Decided by a person */
+                final_category?: components["schemas"]["Category"] | null;
+                /** @description Suggested by the AI, on cases no person has categorised yet */
+                suggested_category?: components["schemas"]["Category"] | null;
+                /** @description Cases with no decided and no suggested category yet */
+                uncategorised?: boolean;
+                /** @description Cases with a confirmed indicator of this type */
+                vulnerability?: components["schemas"]["IndicatorType"] | null;
                 limit?: number;
                 offset?: number;
             };
@@ -591,6 +707,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Bank holiday data does not cover the coming days. Refresh it. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -871,6 +994,40 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    get_dashboard_dashboard_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardRead"];
+                };
+            };
+            /** @description Not a team lead */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bank holiday data does not cover the coming days. Refresh it. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -94,3 +94,15 @@ class AuditSource(StrEnum):
     ACCEPTED_SUGGESTION = "accepted_suggestion"
     OVERRIDE = "override"
     HANDLER = "handler"
+
+
+class DeadlineKind(StrEnum):
+    SUMMARY_RESOLUTION = "src"
+    FINAL_RESPONSE = "final_response"
+
+
+class DeadlineRisk(StrEnum):
+    """US-5: where an open case stands against one of its deadlines."""
+
+    AT_RISK = "at_risk"  # not missed yet, but a few business days or fewer left
+    OVERDUE = "overdue"

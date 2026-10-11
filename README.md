@@ -2,7 +2,7 @@
 
 AI-assisted intake for regulated complaints: each complaint email becomes a case with UK regulatory deadlines (FCA DISP 1.5 / 1.6), a suggested category, priority and vulnerability flags with evidence. Personal data is redacted before it reaches the model, and a person makes every final decision.
 
-> 🚧 Work in progress. Milestones 1–6 are complete: backend foundation, tenant isolation, deadline engine, queue and worker, AI analysis with PII redaction, and the handler's web app. Next: the team lead dashboard.
+> 🚧 Work in progress. Milestones 1–7 are complete: backend foundation, tenant isolation, deadline engine, queue and worker, AI analysis with PII redaction, the handler's web app, and the team lead dashboard.
 
 **Stack:** Python 3.12 · FastAPI · Pydantic v2 · SQLAlchemy 2 · Alembic · PostgreSQL · Docker Compose · GitHub Actions (ruff, mypy, pytest)
 **Messaging:** RabbitMQ · transactional outbox · idempotent worker with retries and a dead-letter queue
@@ -117,6 +117,16 @@ Bank holidays come from a local copy of the gov.uk feed. The app never calls gov
 cd backend
 python -m app.reference_data.refresh_bank_holidays
 ```
+
+## Team lead dashboard
+
+Sign in as a team lead (`demo-nb-lead`) and open **Dashboard**. For the open cases of your own tenant it shows:
+
+- **Deadlines:** cases **at risk** (2 business days or fewer left) and **overdue**, for each deadline separately. Missing the SRC deadline is not a breach (the case then needs a final response within 8 weeks), so it is not mixed up with an overdue final response, which is.
+- **Categories:** decided by a person, and suggested by the AI but not decided yet, in separate columns, so a suggestion is never read as a decision.
+- **Vulnerability:** cases with a confirmed indicator, per type and FCA driver.
+
+Every number is a link to the case list with the matching filters (`GET /cases?open=true&deadline=src&deadline_risk=overdue`, and so on). The dashboard and the list are built from the same query conditions, and a test checks every number against the list it opens. A handler calling `GET /dashboard` gets `403`.
 
 ## Documentation
 

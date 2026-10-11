@@ -13,6 +13,7 @@ export function Layout() {
           Complaint Intake Copilot
         </Link>
         <nav aria-label="Main">
+          {user.role === 'team_lead' && <Link to="/dashboard">Dashboard</Link>}
           <Link to="/cases">Cases</Link>
           <Link to="/cases/new">New complaint</Link>
         </nav>

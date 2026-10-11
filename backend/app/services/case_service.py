@@ -6,6 +6,7 @@ C# comparison: an application service (CaseService : ICaseService) that receives
 import logging
 import secrets
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -15,12 +16,15 @@ from app.db.models import AuditEvent, Case, CaseAnalysis, User, VulnerabilityInd
 from app.db.repositories import (
     AnalysisRepository,
     AuditRepository,
+    CaseCriteria,
     CaseRepository,
+    DeadlineCriterion,
     IndicatorRepository,
     OutboxRepository,
     UserRepository,
 )
 from app.domain.business_calendar import BusinessCalendar, HolidayDataUnavailableError
+from app.domain.deadline_risk import deadline_window
 from app.domain.deadlines import (
     CaseDeadlines,
     DeadlineTracking,
@@ -30,7 +34,7 @@ from app.domain.deadlines import (
 from app.domain.enums import AnalysisStatus, AuditSource, CaseStatus
 from app.logging_config import correlation_id_var
 from app.messaging.outbox import analysis_job_message
-from app.schemas.cases import CaseCreate
+from app.schemas.cases import CaseCreate, CaseFilters
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +115,26 @@ class CaseService:
         self.session.commit()
         logger.info("Case created", extra={"case_id": case.id, "tenant_id": case.tenant_id})
         return CreateCaseResult(case=case, created=True)
+
+    def list(
+        self, filters: CaseFilters, now: datetime, *, limit: int, offset: int
+    ) -> tuple[Sequence[Case], int]:
+        """Raises HolidayDataUnavailableError for an at-risk filter the calendar cannot answer."""
+        deadline = None
+        if filters.deadline is not None and filters.deadline_risk is not None:
+            window = deadline_window(filters.deadline_risk, now, self.calendar)
+            deadline = DeadlineCriterion(filters.deadline, window)
+        criteria = CaseCriteria(
+            status=filters.status,
+            # A countdown stops when a case is resolved, so deadline filters imply open cases.
+            open_only=filters.open_only or deadline is not None,
+            deadline=deadline,
+            final_category=filters.final_category,
+            suggested_category=filters.suggested_category,
+            uncategorised=filters.uncategorised,
+            confirmed_vulnerability=filters.vulnerability,
+        )
+        return self.cases.list(criteria, limit=limit, offset=offset)
 
     def deadline_tracking(self, case: Case, now: datetime) -> DeadlineTracking | None:
         """Business days remaining / overdue / resolved in time. None when deadlines are unknown."""

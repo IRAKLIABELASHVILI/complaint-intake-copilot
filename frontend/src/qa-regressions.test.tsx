@@ -193,3 +193,29 @@ describe('BUG-6 and OBS-5: the new complaint form', () => {
     expect(alert).not.toHaveTextContent('Value error')
   })
 })
+
+// --- Milestone 7 QA pass (2026-10-05) -----------------------------------------------------------
+
+describe('M7 BUG-2: the way back from a case keeps the list it came from', () => {
+  it('returns to the filtered list, e.g. the one a dashboard number opened', async () => {
+    const api = backend()
+    saveToken(TOKEN)
+    renderApp('/cases?open=true&vulnerability=bereavement&status=awaiting_review', api.fetch)
+
+    await userEvent.click(await screen.findByRole('link', { name: 'CMP-2026-AAAA0001' }))
+    await userEvent.click(await screen.findByRole('link', { name: '← Back to the list' }))
+
+    const filters = within(await screen.findByRole('region', { name: 'Active filters' }))
+    expect(filters.getByText('Confirmed vulnerability: Bereavement')).toBeInTheDocument()
+    const last = api.requests.filter((request) => request.path === '/cases').at(-1)
+    expect(last?.search.get('vulnerability')).toBe('bereavement')
+    expect(last?.search.get('status')).toBe('awaiting_review')
+  })
+
+  it('offers all cases when the case was opened directly', async () => {
+    saveToken(TOKEN)
+    renderApp('/cases/case-a', backend().fetch)
+
+    expect(await screen.findByRole('link', { name: '← All cases' })).toHaveAttribute('href', '/cases')
+  })
+})

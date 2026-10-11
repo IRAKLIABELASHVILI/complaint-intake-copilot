@@ -1,18 +1,14 @@
 """Reviewing AI suggestions and recording decisions through the API (US-2, US-3)."""
 
-import uuid
 from collections.abc import Callable
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session, sessionmaker
 
-from app.messaging.messages import AnalysisJob
-from app.worker.analysis_job_handler import AnalysisJobHandler
-from app.worker.case_analyser import INVALID_TWICE, CaseAnalyser
+from app.worker.case_analyser import INVALID_TWICE
 from tests.conftest import SeededUser, TwoTenants
-from tests.fakes import ScriptedProvider, model_answer
+from tests.fakes import model_answer
 
 CreateCase = Callable[..., dict[str, object]]
 Json = dict[str, Any]  # API responses, as parsed JSON
@@ -28,21 +24,12 @@ SUGGESTION = model_answer(
 
 
 @pytest.fixture
-def analysed_case(
-    session_factory: sessionmaker[Session], create_case: CreateCase
-) -> Callable[..., Json]:
+def analysed_case(create_case: CreateCase, analyse: Callable[..., None]) -> Callable[..., Json]:
     """Create a case as `user`, then run the worker on it with the given model answers."""
 
     def _analysed(user: SeededUser, *answers: str) -> Json:
         case = create_case(user, body=BODY)
-        provider = ScriptedProvider(list(answers or [SUGGESTION]))
-        job = AnalysisJob(
-            message_id=uuid.uuid4(),
-            case_id=uuid.UUID(str(case["id"])),
-            tenant_id=user.tenant_id,
-            correlation_id="review-test",
-        )
-        AnalysisJobHandler(session_factory, CaseAnalyser(provider)).handle(job)
+        analyse(user, case, *(answers or [SUGGESTION]))
         return case
 
     return _analysed

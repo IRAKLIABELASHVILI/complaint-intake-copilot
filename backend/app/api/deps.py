@@ -17,8 +17,10 @@ from sqlalchemy.orm import Session
 from app.db.models import Tenant, User
 from app.db.session import new_session
 from app.domain.business_calendar import BusinessCalendar
+from app.domain.enums import UserRole
 from app.reference_data.bank_holidays import calendar_for_region
 from app.services.case_service import CaseService
+from app.services.dashboard_service import DashboardService
 from app.services.decision_service import DecisionService
 
 _bearer = HTTPBearer(auto_error=False)
@@ -91,3 +93,25 @@ def get_decision_service(session: SessionDep, user: CurrentUser) -> DecisionServ
 
 
 DecisionServiceDep = Annotated[DecisionService, Depends(get_decision_service)]
+
+
+def require_team_lead(user: CurrentUser) -> User:
+    """US-5.2: the dashboard is for team leads. A handler gets 403 (they are signed in, but the
+    answer is "not allowed", unlike another tenant's case, where it is "not found")."""
+    if user.role is not UserRole.TEAM_LEAD:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only team leads can see the dashboard")
+    return user
+
+
+TeamLead = Annotated[User, Depends(require_team_lead)]
+
+
+def get_dashboard_service(
+    session: SessionDep,
+    user: TeamLead,
+    calendar: Annotated[BusinessCalendar, Depends(get_business_calendar)],
+) -> DashboardService:
+    return DashboardService(session, user, calendar)
+
+
+DashboardServiceDep = Annotated[DashboardService, Depends(get_dashboard_service)]

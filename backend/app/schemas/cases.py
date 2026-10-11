@@ -9,12 +9,22 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from app.domain.enums import (
     AuditSource,
     CaseStatus,
     Category,
+    DeadlineKind,
+    DeadlineRisk,
     IndicatorDecision,
     IndicatorSource,
     IndicatorType,
@@ -179,6 +189,50 @@ class CaseSummary(BaseModel):
     open_vulnerability_flags: int = Field(
         default=0, description="Indicators not rejected: pending or confirmed"
     )
+
+
+class CaseFilters(BaseModel):
+    """Query string filters of the case list. Each one narrows the list; they combine with AND.
+
+    The dashboard (US-5.4) links every number to the list with the matching filters.
+    """
+
+    status: CaseStatus | None = None
+    open_only: bool = Field(
+        default=False, alias="open", description="Only cases that are not resolved"
+    )
+    deadline: DeadlineKind | None = Field(
+        default=None, description="Which deadline `deadline_risk` applies to"
+    )
+    deadline_risk: DeadlineRisk | None = Field(
+        default=None,
+        description="at_risk: 2 business days or fewer left; overdue: past the deadline. "
+        "Only open cases match.",
+    )
+    final_category: Category | None = Field(default=None, description="Decided by a person")
+    suggested_category: Category | None = Field(
+        default=None, description="Suggested by the AI, on cases no person has categorised yet"
+    )
+    uncategorised: bool = Field(
+        default=False, description="Cases with no decided and no suggested category yet"
+    )
+    vulnerability: IndicatorType | None = Field(
+        default=None, description="Cases with a confirmed indicator of this type"
+    )
+
+    @model_validator(mode="after")
+    def deadline_needs_both_parts(self) -> "CaseFilters":
+        if (self.deadline is None) != (self.deadline_risk is None):
+            raise ValueError("deadline and deadline_risk must be given together")
+        return self
+
+
+class CaseListQuery(CaseFilters):
+    """The whole query string of `GET /cases`. FastAPI expands a model into separate query
+    parameters only when it is the endpoint's one query parameter, so paging lives here too."""
+
+    limit: int = Field(default=25, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
 
 
 class CaseList(BaseModel):

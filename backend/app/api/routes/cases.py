@@ -5,13 +5,15 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from app.api.deps import CaseServiceDep, DecisionServiceDep, NowDep
+from app.api.routes.dashboard import CALENDAR_OUT_OF_DATE
 from app.db.models import Case
-from app.domain.enums import CaseStatus
+from app.domain.business_calendar import HolidayDataUnavailableError
 from app.schemas.cases import (
     AuditEventRead,
     CaseAssign,
     CaseCreate,
     CaseList,
+    CaseListQuery,
     CaseRead,
     CaseSummary,
     CategoryDecision,
@@ -71,15 +73,20 @@ def create_case(
     return _case_detail(result.case, service, now)
 
 
-@router.get("", response_model=CaseList)
+@router.get(
+    "",
+    response_model=CaseList,
+    responses={503: {"description": CALENDAR_OUT_OF_DATE}},
+)
 def list_cases(
     service: CaseServiceDep,
     now: NowDep,
-    status_filter: Annotated[CaseStatus | None, Query(alias="status")] = None,
-    limit: Annotated[int, Query(ge=1, le=100)] = 25,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    query: Annotated[CaseListQuery, Query()],
 ) -> CaseList:
-    cases, total = service.cases.list(status=status_filter, limit=limit, offset=offset)
+    try:
+        cases, total = service.list(query, now, limit=query.limit, offset=query.offset)
+    except HolidayDataUnavailableError:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, CALENDAR_OUT_OF_DATE) from None
     flags = service.indicators.open_counts([case.id for case in cases])
     items = [_to_response(CaseSummary, case, service, now) for case in cases]
     for item in items:
@@ -87,8 +94,8 @@ def list_cases(
     return CaseList(
         items=items,
         total=total,
-        limit=limit,
-        offset=offset,
+        limit=query.limit,
+        offset=query.offset,
     )
 
 

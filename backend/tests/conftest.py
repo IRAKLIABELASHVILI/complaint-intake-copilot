@@ -11,6 +11,7 @@ import os
 import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,12 +19,16 @@ from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.api.deps import get_session, hash_token
+from app.api.deps import get_now, get_session, hash_token
 from app.db.base import Base
 from app.db.models import Tenant, User
 from app.db.session import build_engine
 from app.domain.enums import UserRole
 from app.main import app
+from app.messaging.messages import AnalysisJob
+from app.worker.analysis_job_handler import AnalysisJobHandler
+from app.worker.case_analyser import CaseAnalyser
+from tests.fakes import ScriptedProvider
 
 
 def _build_test_engine() -> Engine:
@@ -156,3 +161,32 @@ def create_case(client: TestClient) -> Callable[..., dict[str, object]]:
         return body
 
     return _create
+
+
+@pytest.fixture
+def freeze_time(client: TestClient) -> Iterator[Callable[[datetime], None]]:
+    """Freeze the API's clock (the `get_now` dependency). C#: a FakeTimeProvider."""
+
+    def _freeze(moment: datetime) -> None:
+        app.dependency_overrides[get_now] = lambda: moment
+
+    yield _freeze
+    app.dependency_overrides.pop(get_now, None)
+
+
+@pytest.fixture
+def analyse(session_factory: sessionmaker[Session]) -> Callable[..., None]:
+    """Helper: run the real worker on a case of `user`, the model giving `answers` in turn."""
+
+    def _analyse(user: SeededUser, case: dict[str, object], *answers: str) -> None:
+        job = AnalysisJob(
+            message_id=uuid.uuid4(),
+            case_id=uuid.UUID(str(case["id"])),
+            tenant_id=user.tenant_id,
+            correlation_id="test-analysis",
+        )
+        AnalysisJobHandler(session_factory, CaseAnalyser(ScriptedProvider(list(answers)))).handle(
+            job
+        )
+
+    return _analyse

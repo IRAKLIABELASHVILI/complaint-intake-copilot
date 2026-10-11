@@ -9,10 +9,11 @@ C# comparison: this plays the role of an EF Core global query filter
 
 import uuid
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import Select, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import ColumnElement, Row, Select, Subquery, and_, case, func, not_, select
+from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app.db.base import TenantScopedMixin
 from app.db.models import (
@@ -23,7 +24,15 @@ from app.db.models import (
     User,
     VulnerabilityIndicator,
 )
-from app.domain.enums import AnalysisStatus, CaseStatus, IndicatorDecision
+from app.domain.deadline_risk import DeadlineWindow
+from app.domain.enums import (
+    AnalysisStatus,
+    CaseStatus,
+    Category,
+    DeadlineKind,
+    IndicatorDecision,
+    IndicatorType,
+)
 
 
 class CrossTenantWriteError(Exception):
@@ -61,7 +70,58 @@ class TenantScopedRepository[ModelT: TenantScopedMixin]:
         return entity
 
 
+@dataclass(frozen=True)
+class DeadlineCriterion:
+    kind: DeadlineKind
+    window: DeadlineWindow
+
+
+@dataclass(frozen=True)
+class CaseCriteria:
+    """Which cases a list shows. Every field narrows the result; the defaults match everything."""
+
+    status: CaseStatus | None = None
+    open_only: bool = False
+    deadline: DeadlineCriterion | None = None
+    final_category: Category | None = None
+    suggested_category: Category | None = None  # the AI's, on cases no person has categorised
+    uncategorised: bool = False  # neither decided nor suggested yet
+    confirmed_vulnerability: IndicatorType | None = None
+
+
+_DEADLINE_COLUMNS: dict[DeadlineKind, InstrumentedAttribute[Any]] = {
+    DeadlineKind.SUMMARY_RESOLUTION: Case.src_deadline_at,
+    DeadlineKind.FINAL_RESPONSE: Case.final_response_deadline_at,
+}
+
+# A case shows its AI suggestion only once the analysis is over (US-2.4, CaseService.review).
+_SUGGESTION_HIDDEN_STATUSES = (CaseStatus.NEW, CaseStatus.ANALYSING)
+
+
+def _is_open() -> ColumnElement[bool]:
+    return Case.status != CaseStatus.RESOLVED
+
+
+def _in_window(criterion: DeadlineCriterion) -> ColumnElement[bool]:
+    column = _DEADLINE_COLUMNS[criterion.kind]
+    window = criterion.window
+    if window.starts_at is None:
+        return column < window.ends_at  # NULL (unknown deadline) never matches
+    return and_(column >= window.starts_at, column < window.ends_at)
+
+
+def _as_counts(rows: Sequence[Row[Any, int]]) -> dict[Any, int]:
+    """Rows of (group key, count) as a dictionary. Callers declare the key type they return."""
+    return {key: count for key, count in rows}
+
+
 class CaseRepository(TenantScopedRepository[Case]):
+    """Cases, and the counts the team lead dashboard is made of (US-5).
+
+    The list filters and the dashboard counts are built from the same conditions below, so a
+    number on the dashboard and the list it links to cannot disagree.
+    """
+
     model = Case
 
     def get(self, case_id: uuid.UUID) -> Case | None:
@@ -72,18 +132,153 @@ class CaseRepository(TenantScopedRepository[Case]):
         return self.session.scalars(self._scoped(statement)).first()
 
     def list(
-        self, *, status: CaseStatus | None, limit: int, offset: int
+        self, criteria: CaseCriteria, *, limit: int, offset: int
     ) -> tuple[Sequence[Case], int]:
-        statement = self._scoped(select(Case))
-        if status is not None:
-            statement = statement.where(Case.status == status)
+        statement = self._scoped(select(Case)).where(*self._conditions(criteria))
 
         total = self.session.scalar(select(func.count()).select_from(statement.subquery())) or 0
-        page = statement.order_by(Case.received_at.desc()).limit(limit).offset(offset)
+        page = statement.order_by(Case.received_at.desc(), Case.id).limit(limit).offset(offset)
         return self.session.scalars(page).all(), total
 
     def add(self, case: Case) -> Case:
         return self._add(case)
+
+    # --- Dashboard counts: open cases only ------------------------------------------------------
+
+    def count_open(self) -> int:
+        statement = self._scoped(select(func.count()).select_from(Case)).where(_is_open())
+        return self.session.scalar(statement) or 0
+
+    def count_deadlines(
+        self, criteria: Sequence[DeadlineCriterion]
+    ) -> dict[DeadlineCriterion, int]:
+        """Open cases matching each deadline criterion, all in one query."""
+        columns = [func.count(case((_in_window(criterion), 1))) for criterion in criteria]
+        statement = self._scoped(select(*columns).select_from(Case)).where(_is_open())
+        counts = self.session.execute(statement).one()
+        return dict(zip(criteria, counts, strict=True))
+
+    def count_by_final_category(self) -> dict[Category, int]:
+        statement = (
+            self._scoped(select(Case.final_category, func.count()))
+            .where(_is_open(), Case.final_category.is_not(None))
+            .group_by(Case.final_category)
+        )
+        return _as_counts(self.session.execute(statement).all())
+
+    def count_by_suggested_category(self) -> dict[Category, int]:
+        suggestions = self._latest_suggestions()
+        statement = (
+            self._scoped(select(suggestions.c.suggested_category, func.count()))
+            .select_from(Case)
+            .join(suggestions, suggestions.c.case_id == Case.id)
+            .where(_is_open(), *self._suggestion_applies())
+            .group_by(suggestions.c.suggested_category)
+        )
+        return _as_counts(self.session.execute(statement).all())
+
+    def count_uncategorised(self) -> int:
+        statement = self._scoped(select(func.count()).select_from(Case)).where(
+            _is_open(), self._uncategorised()
+        )
+        return self.session.scalar(statement) or 0
+
+    def count_by_confirmed_vulnerability(self) -> dict[IndicatorType, int]:
+        """Open cases per confirmed indicator type. A case with two confirmed indicators of the
+        same type counts once."""
+        statement = (
+            self._scoped(
+                select(VulnerabilityIndicator.indicator_type, func.count(Case.id.distinct()))
+            )
+            .select_from(Case)
+            .join(VulnerabilityIndicator, VulnerabilityIndicator.case_id == Case.id)
+            .where(
+                _is_open(),
+                VulnerabilityIndicator.tenant_id == self.tenant_id,
+                VulnerabilityIndicator.decision == IndicatorDecision.CONFIRMED,
+            )
+            .group_by(VulnerabilityIndicator.indicator_type)
+        )
+        return _as_counts(self.session.execute(statement).all())
+
+    # --- The conditions shared by the list filters and the counts -------------------------------
+
+    def _conditions(self, criteria: CaseCriteria) -> Sequence[ColumnElement[bool]]:
+        conditions: list[ColumnElement[bool]] = []
+        if criteria.status is not None:
+            conditions.append(Case.status == criteria.status)
+        if criteria.open_only:
+            conditions.append(_is_open())
+        if criteria.deadline is not None:
+            conditions.append(_in_window(criteria.deadline))
+        if criteria.final_category is not None:
+            conditions.append(Case.final_category == criteria.final_category)
+        if criteria.suggested_category is not None:
+            conditions.append(self._suggested(criteria.suggested_category))
+        if criteria.uncategorised:
+            conditions.append(self._uncategorised())
+        if criteria.confirmed_vulnerability is not None:
+            conditions.append(self._confirmed(criteria.confirmed_vulnerability))
+        return conditions
+
+    def _latest_suggestions(self) -> Subquery:
+        """The newest completed analysis of each case: (case_id, suggested_category).
+
+        Older analyses of a re-analysed case are history, not the current suggestion.
+        C# comparison: GroupBy(a => a.CaseId).Select(g => g.OrderByDescending(...).First()).
+        """
+        ranked = (
+            select(
+                CaseAnalysis.case_id,
+                CaseAnalysis.suggested_category,
+                func.row_number()
+                .over(
+                    partition_by=CaseAnalysis.case_id,
+                    order_by=(CaseAnalysis.created_at.desc(), CaseAnalysis.attempt.desc()),
+                )
+                .label("position"),
+            )
+            .where(
+                CaseAnalysis.tenant_id == self.tenant_id,
+                CaseAnalysis.status == AnalysisStatus.COMPLETED,
+            )
+            .subquery()
+        )
+        return (
+            select(ranked.c.case_id, ranked.c.suggested_category)
+            .where(ranked.c.position == 1, ranked.c.suggested_category.is_not(None))
+            .subquery()
+        )
+
+    @staticmethod
+    def _suggestion_applies() -> tuple[ColumnElement[bool], ...]:
+        """A suggestion stands only where no person has decided yet, and the case shows it."""
+        return (
+            Case.final_category.is_(None),
+            Case.status.not_in(_SUGGESTION_HIDDEN_STATUSES),
+        )
+
+    def _suggested(self, category: Category) -> ColumnElement[bool]:
+        suggestions = self._latest_suggestions()
+        suggested_ids = select(suggestions.c.case_id).where(
+            suggestions.c.suggested_category == category
+        )
+        return and_(*self._suggestion_applies(), Case.id.in_(suggested_ids))
+
+    def _uncategorised(self) -> ColumnElement[bool]:
+        suggestions = self._latest_suggestions()
+        has_suggestion = and_(
+            *self._suggestion_applies(), Case.id.in_(select(suggestions.c.case_id))
+        )
+        return and_(Case.final_category.is_(None), not_(has_suggestion))
+
+    def _confirmed(self, indicator_type: IndicatorType) -> ColumnElement[bool]:
+        confirmed_case_ids = select(VulnerabilityIndicator.case_id).where(
+            VulnerabilityIndicator.tenant_id == self.tenant_id,
+            VulnerabilityIndicator.indicator_type == indicator_type,
+            VulnerabilityIndicator.decision == IndicatorDecision.CONFIRMED,
+        )
+        return Case.id.in_(confirmed_case_ids)
 
 
 class UserRepository(TenantScopedRepository[User]):

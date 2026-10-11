@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable
 
 from fastapi import FastAPI, Request, Response
 
-from app.api.routes import cases, system
+from app.api.routes import cases, dashboard, system
 from app.config import get_settings
 from app.logging_config import CORRELATION_ID_PATTERN, configure_logging, correlation_id_var
 
@@ -53,6 +53,7 @@ def create_app() -> FastAPI:
 
     app.include_router(system.router)
     app.include_router(cases.router)
+    app.include_router(dashboard.router)
     return app
 
 

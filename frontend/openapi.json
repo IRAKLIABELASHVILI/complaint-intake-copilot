@@ -544,6 +544,30 @@
         "title": "Category",
         "type": "string"
       },
+      "CategoryCountRead": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "decided": {
+            "description": "Cases a person put in this category",
+            "title": "Decided",
+            "type": "integer"
+          },
+          "suggested": {
+            "description": "Cases only the AI put in this category, not decided yet",
+            "title": "Suggested",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "decided",
+          "suggested"
+        ],
+        "title": "CategoryCountRead",
+        "type": "object"
+      },
       "CategoryDecision": {
         "additionalProperties": false,
         "properties": {
@@ -556,6 +580,92 @@
         ],
         "title": "CategoryDecision",
         "type": "object"
+      },
+      "DashboardRead": {
+        "properties": {
+          "at_risk_business_days": {
+            "title": "At Risk Business Days",
+            "type": "integer"
+          },
+          "categories": {
+            "description": "Every category, in a fixed order",
+            "items": {
+              "$ref": "#/components/schemas/CategoryCountRead"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "final_response": {
+            "$ref": "#/components/schemas/DeadlineCountsRead",
+            "description": "The 8-week final response deadline (DISP 1.6). Overdue = a breach."
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "open_cases": {
+            "title": "Open Cases",
+            "type": "integer"
+          },
+          "summary_resolution": {
+            "$ref": "#/components/schemas/DeadlineCountsRead",
+            "description": "The SRC deadline (DISP 1.5). Missing it is not a breach: the case then needs a final response instead."
+          },
+          "uncategorised": {
+            "description": "Open cases with no decided or suggested category",
+            "title": "Uncategorised",
+            "type": "integer"
+          },
+          "vulnerabilities": {
+            "description": "Every indicator type, confirmed indicators only",
+            "items": {
+              "$ref": "#/components/schemas/VulnerabilityCountRead"
+            },
+            "title": "Vulnerabilities",
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "open_cases",
+          "at_risk_business_days",
+          "summary_resolution",
+          "final_response",
+          "categories",
+          "uncategorised",
+          "vulnerabilities"
+        ],
+        "title": "DashboardRead",
+        "type": "object"
+      },
+      "DeadlineCountsRead": {
+        "properties": {
+          "at_risk": {
+            "description": "Not missed yet, with at_risk_business_days or fewer left",
+            "title": "At Risk",
+            "type": "integer"
+          },
+          "overdue": {
+            "description": "Past the deadline",
+            "title": "Overdue",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at_risk",
+          "overdue"
+        ],
+        "title": "DeadlineCountsRead",
+        "type": "object"
+      },
+      "DeadlineKind": {
+        "enum": [
+          "src",
+          "final_response"
+        ],
+        "title": "DeadlineKind",
+        "type": "string"
       },
       "DeadlineProgressRead": {
         "properties": {
@@ -581,6 +691,15 @@
         ],
         "title": "DeadlineProgressRead",
         "type": "object"
+      },
+      "DeadlineRisk": {
+        "description": "US-5: where an open case stands against one of its deadlines.",
+        "enum": [
+          "at_risk",
+          "overdue"
+        ],
+        "title": "DeadlineRisk",
+        "type": "string"
       },
       "DeadlineTrackingRead": {
         "description": "Calculated on every read, because it depends on today's date (US-4.6, US-4.7).",
@@ -944,6 +1063,28 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VulnerabilityCountRead": {
+        "properties": {
+          "cases": {
+            "description": "Open cases with at least one confirmed indicator of the type",
+            "title": "Cases",
+            "type": "integer"
+          },
+          "driver": {
+            "$ref": "#/components/schemas/VulnerabilityDriver"
+          },
+          "indicator_type": {
+            "$ref": "#/components/schemas/IndicatorType"
+          }
+        },
+        "required": [
+          "indicator_type",
+          "driver",
+          "cases"
+        ],
+        "title": "VulnerabilityCountRead",
+        "type": "object"
+      },
       "VulnerabilityDriver": {
         "description": "The four drivers of vulnerability in FCA FG21/1.",
         "enum": [
@@ -991,6 +1132,120 @@
             }
           },
           {
+            "description": "Only cases that are not resolved",
+            "in": "query",
+            "name": "open",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only cases that are not resolved",
+              "title": "Open",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Which deadline `deadline_risk` applies to",
+            "in": "query",
+            "name": "deadline",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DeadlineKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Which deadline `deadline_risk` applies to",
+              "title": "Deadline"
+            }
+          },
+          {
+            "description": "at_risk: 2 business days or fewer left; overdue: past the deadline. Only open cases match.",
+            "in": "query",
+            "name": "deadline_risk",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DeadlineRisk"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "at_risk: 2 business days or fewer left; overdue: past the deadline. Only open cases match.",
+              "title": "Deadline Risk"
+            }
+          },
+          {
+            "description": "Decided by a person",
+            "in": "query",
+            "name": "final_category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Category"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Decided by a person",
+              "title": "Final Category"
+            }
+          },
+          {
+            "description": "Suggested by the AI, on cases no person has categorised yet",
+            "in": "query",
+            "name": "suggested_category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Category"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Suggested by the AI, on cases no person has categorised yet",
+              "title": "Suggested Category"
+            }
+          },
+          {
+            "description": "Cases with no decided and no suggested category yet",
+            "in": "query",
+            "name": "uncategorised",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Cases with no decided and no suggested category yet",
+              "title": "Uncategorised",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Cases with a confirmed indicator of this type",
+            "in": "query",
+            "name": "vulnerability",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/IndicatorType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cases with a confirmed indicator of this type",
+              "title": "Vulnerability"
+            }
+          },
+          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -1034,6 +1289,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "503": {
+            "description": "Bank holiday data does not cover the coming days. Refresh it."
           }
         },
         "security": [
@@ -1502,6 +1760,39 @@
         "summary": "Decide Indicator",
         "tags": [
           "cases"
+        ]
+      }
+    },
+    "/dashboard": {
+      "get": {
+        "description": "US-5: open cases close to breach and overdue, by category and by vulnerability.\n\nTeam leads only, and for their own tenant only. Every number links to `GET /cases` with the\nmatching filters.",
+        "operationId": "get_dashboard_dashboard_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Not a team lead"
+          },
+          "503": {
+            "description": "Bank holiday data does not cover the coming days. Refresh it."
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Dashboard",
+        "tags": [
+          "dashboard"
         ]
       }
     },
