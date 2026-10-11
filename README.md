@@ -135,6 +135,8 @@ Every case gets two deadlines at intake, calculated in UK time by pure functions
 
 Business days skip weekends and the tenant's regional UK bank holidays. Each read of a case adds a `deadline_tracking` block: business days remaining, overdue, or resolved in time.
 
+![The handler's case list: each case with its status, both deadline countdowns and open vulnerability flags](docs/screenshots/case-list.png)
+
 Bank holidays come from a local copy of the gov.uk feed. The app never calls gov.uk at runtime. To refresh the file (validated before it is written):
 
 ```bash
